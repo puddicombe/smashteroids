@@ -1,7 +1,7 @@
 {
-  "name": "asteroids-game",
-  "version": "1.0.0",
-  "description": "Classic Asteroids game with server-based high scores",
+  "name": "smashteroids-game",
+  "version": "1.2.0",
+  "description": "SMASHTEROIDS - A modern reimagining inspired by the classic Asteroids arcade game",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",

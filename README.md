@@ -1,13 +1,13 @@
-# Asteroids Game
+# SMASHTEROIDS
 
-A modern reimagining of the classic Asteroids arcade game, featuring enhanced gameplay mechanics, intelligent enemies, and a server-based high score system.
+A modern reimagining inspired by the classic Asteroids arcade game, featuring enhanced gameplay mechanics, intelligent enemies, and a server-based high score system.
 
 (c) James Puddicombe 2025
 
 ## Features
 
 ### Core Gameplay
-- Classic Asteroids gameplay with improved physics and controls
+- Modern take on classic arcade-style gameplay with improved physics and controls
 - Momentum-based movement with realistic inertia
 - Size-based asteroid behavior: smaller asteroids move and rotate faster
 - Safe respawn system to prevent unfair deaths

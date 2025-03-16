@@ -1,8 +1,8 @@
 /**
- * Asteroids Game - A modern reimagining of the classic arcade game
+ * SMASHTEROIDS - A modern reimagining inspired by the classic Asteroids arcade game
  * Copyright (c) James Puddicombe 2025
  * 
- * This implementation focuses on enhancing the original gameplay with:
+ * This implementation enhances the original Asteroids concept with:
  * - Modern web technologies (HTML5 Canvas, Web Audio API)
  * - Improved physics and collision detection
  * - Server-based high score system
@@ -18,6 +18,110 @@ const ctx = canvas.getContext('2d');
 let logMessages = [];        // Stores debug/info messages for development and user feedback
 let gameStarted = false;     // Controls game state transitions between menu and gameplay
 let gameLoopRunning = false; // Prevents multiple game loops from running simultaneously
+
+// Score pop-up system
+let scorePopups = [];
+const SCORE_POPUP_LIFETIME = 60;  // 1 second at 60fps
+const SCORE_POPUP_SPEED = 1;      // Pixels per frame
+const SCORE_POPUP_FADE_START = 45; // When to start fading (frames remaining)
+
+// Create a score popup at the given position
+function createScorePopup(x, y, points) {
+    scorePopups.push({
+        x: x,
+        y: y,
+        points: points,
+        lifetime: SCORE_POPUP_LIFETIME,
+        scale: 1,
+        opacity: 1
+    });
+}
+
+// Update score popups
+function updateScorePopups() {
+    for (let i = scorePopups.length - 1; i >= 0; i--) {
+        const popup = scorePopups[i];
+        
+        // Move popup upward
+        popup.y -= SCORE_POPUP_SPEED;
+        
+        // Update lifetime
+        popup.lifetime--;
+        
+        // Scale up slightly at start
+        if (popup.lifetime > SCORE_POPUP_LIFETIME - 10) {
+            popup.scale = 1 + (SCORE_POPUP_LIFETIME - popup.lifetime) * 0.05;
+        }
+        
+        // Start fading out
+        if (popup.lifetime < SCORE_POPUP_FADE_START) {
+            popup.opacity = popup.lifetime / SCORE_POPUP_FADE_START;
+        }
+        
+        // Remove dead popups
+        if (popup.lifetime <= 0) {
+            scorePopups.splice(i, 1);
+        }
+    }
+}
+
+// Draw score popups
+function drawScorePopups() {
+    ctx.textAlign = 'center';
+    
+    scorePopups.forEach(popup => {
+        ctx.save();
+        
+        // Set up text style
+        ctx.font = '16px PressStart2P';
+        
+        // Determine color based on score value
+        let color1, color2;
+        if (popup.points >= 1000) {
+            // Alien kills - Gold/Yellow
+            color1 = '#FFD700';
+            color2 = '#FFA500';
+        } else if (popup.points >= 300) {
+            // Small asteroid - Purple/Pink
+            color1 = '#FF69B4';
+            color2 = '#9370DB';
+        } else if (popup.points >= 200) {
+            // Medium asteroid - Blue/Cyan
+            color1 = '#00BFFF';
+            color2 = '#4169E1';
+        } else {
+            // Large asteroid - Green/Teal
+            color1 = '#98FB98';
+            color2 = '#20B2AA';
+        }
+        
+        // Create gradient
+        const gradient = ctx.createLinearGradient(
+            popup.x,
+            popup.y - 10,
+            popup.x,
+            popup.y + 10
+        );
+        gradient.addColorStop(0, color1);
+        gradient.addColorStop(1, color2);
+        
+        // Apply scale transform
+        ctx.translate(popup.x, popup.y);
+        ctx.scale(popup.scale, popup.scale);
+        ctx.translate(-popup.x, -popup.y);
+        
+        // Draw score with gradient and glow effect
+        ctx.shadowColor = color1;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = popup.opacity;
+        
+        // Draw text with + prefix
+        ctx.fillText(`+${popup.points}`, popup.x, popup.y);
+        
+        ctx.restore();
+    });
+}
 
 // Visual enhancement features
 let stars = [];             // Background star field for visual depth
@@ -64,9 +168,14 @@ let highScoresFetched = false;
  * Used to create smooth, dynamic visual effects
  * that enhance game feel and user feedback
  */
-let titleHoverOffset = 0;
-let titleHoverDirection = 1;
 let frameCount = 0;
+let titleHoverOffset = 0;
+let titleHoverVelocity = 0.5; // Add initial upward velocity
+const TITLE_HOVER_SPEED = 0.02;      // Slightly slower for smoother movement
+const TITLE_HOVER_RANGE = 40;        // Increased range for more dramatic movement
+const TITLE_DAMPING = 0.9995;        // Almost no damping for sustained motion
+const TITLE_SPRING = 0.001;          // Very weak spring force for larger oscillations
+const TITLE_TRAIL_COUNT = 5;         // Number of trailing shadows
 
 /**
  * Core game state
@@ -76,6 +185,9 @@ let frameCount = 0;
 let ship = null;
 let asteroids = [];
 let bullets = [];
+let aliens = [];           // Array to hold alien ships
+let alienBullets = [];     // Array to hold alien bullets
+let alienSpawnTimer = 0;   // Timer for alien spawning
 let score = 0;
 let lives = 3;
 let level = 1;
@@ -88,17 +200,31 @@ let level = 1;
  * - Progressive challenge scaling
  * - Rewarding scoring system
  */
-const SHIP_SIZE = 20;                    // Base size of the player's ship
-const SHIP_THRUST = 0.5;                 // Acceleration rate
-const SHIP_ROTATION_SPEED = 0.1;         // Rotation rate
-const FRICTION = 0.99;                   // Friction coefficient (1 = no friction)
+const SHIP_SIZE = 20;                    // Reduced from 30 to 20 for a smaller ship
+const SHIP_THRUST = 0.3;                 // Reduced from 0.5 to 0.3 for more controlled movement
+const SHIP_MAX_THRUST = 0.3;             // Reduced from 0.5 to match new thrust value
+const SHIP_ROTATION_SPEED = 0.1;         // Rotation rate unchanged
+const FRICTION = 0.99;                   // Friction coefficient unchanged
+const INVULNERABILITY_TIME = 180;        // Invulnerability duration unchanged
+
+// Visual Enhancement 1 - Thrust Effects
+const THRUST_FLAME_BASE = 0.6;           // Reduced from 0.8 for smaller flame
+const THRUST_FLAME_VARIANCE = 0.2;       // Reduced from 0.3 for more subtle variance
+const THRUST_SHAKE_AMOUNT = 0.15;        // Reduced from 0.2 for less shake
+const THRUST_PARTICLE_COUNT = 12;        // Reduced from 15 for fewer particles
+const THRUST_PARTICLE_LIFETIME = 15;     // Reduced from 20 for shorter trails
+const THRUST_PARTICLE_SPEED = 1.2;       // Reduced from 1.5 for slower particles
+const THRUST_PARTICLE_SPREAD = 0.25;     // Reduced from 0.3 for tighter spread
+const THRUST_PARTICLE_SPIN = 0.15;       // Reduced from 0.2 for less spin
+const THRUST_PARTICLE_SIZE = 1.5;        // Reduced from 2 for smaller particles
+const THRUST_PARTICLE_PULSE_SPEED = 0.25; // Reduced from 0.3 for slower pulsing
 
 // Asteroid constants
 const BASE_ASTEROID_SPEED = 1;           // Base speed for asteroids
 const ASTEROID_SPEED_SCALING = 0.2;      // Speed increase per level
 const MAX_ASTEROID_SPEED = 3;            // Maximum asteroid speed
 const ASTEROID_COUNT = 3;                // Starting number of asteroids
-const ASTEROID_JAG = 0.4;                // Jaggedness of asteroid shapes
+const ASTEROID_JAG = 0.3;                // Jaggedness of asteroid shapes
 const SCORE_MULTIPLIER = 100;            // Base score for destroying asteroids
 
 // Bullet constants
@@ -125,6 +251,13 @@ const ALIEN_BULLET_PULSE_SPEED = 0.2;    // Speed of bullet pulse animation
 const ALIEN_BASE_SPAWN_INTERVAL = 1800;  // Base interval (30 seconds at 60fps)
 const ALIEN_SPAWN_INTERVAL_DECREASE = 300; // Decrease per level (5 seconds)
 const ALIEN_MIN_SPAWN_INTERVAL = 600;    // Minimum interval (10 seconds)
+const ALIEN_SPAWN_DELAY = 20000;         // Base delay between aliens (20 seconds)
+const ALIEN_SPAWN_RANDOM = 10000;        // Additional random delay (up to 10 seconds)
+
+// Add alien spawn and invulnerability constants
+const ALIEN_INVULNERABILITY_TIME = 180; // 3 seconds at 60fps
+const ALIEN_SPAWN_EFFECT_DURATION = 60; // 1 second spawn animation
+const ALIEN_SPAWN_PARTICLES = 20;
 
 /**
  * Input state tracking
@@ -285,6 +418,9 @@ window.addEventListener('load', function() {
  * - Handles pause state and overlay systems
  */
 function gameLoop() {
+    // Increment frame counter for animations
+    frameCount++;
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -302,12 +438,15 @@ function gameLoop() {
             updateGame();
             updateAliens();
             updateAlienBullets();
+            updateScorePopups(); // Add score popup updates
+            updateAlienDebris();
         } else {
             drawPauseScreen();
         }
         
         // Always draw game elements for visual continuity
         drawGame();
+        drawAlienDebris(); // Add debris layer
         drawAliens();
         drawAlienBullets();
     }
@@ -395,13 +534,6 @@ function generateStars() {
 function drawWelcomeElements() {
     generateStars();
     
-    // Title animation
-    frameCount++;
-    titleHoverOffset += 0.05 * titleHoverDirection;
-    if (titleHoverOffset > 5 || titleHoverOffset < -5) {
-        titleHoverDirection *= -1;
-    }
-    
     // Render starfield with parallax effect
     stars.forEach(star => {
         const twinkle = Math.sin(frameCount * star.twinkleSpeed + star.twinkleOffset);
@@ -413,16 +545,14 @@ function drawWelcomeElements() {
     // Welcome screen components
     updateWelcomeAsteroids();
     drawWelcomeAsteroids();
-
-    // Animated title
-    ctx.fillStyle = 'white';
-    ctx.font = '28px PressStart2P';
-    ctx.textAlign = 'center';
-    ctx.fillText('ASTEROIDS', canvas.width / 2, canvas.height / 5 + titleHoverOffset);
+    
+    // Draw the enhanced title
+    drawWelcomeTitle();
 
     // Blinking start prompt
     ctx.font = '12px PressStart2P';
     if (Math.floor(frameCount / 30) % 2 === 0) {
+        ctx.fillStyle = 'white';
         ctx.fillText('PRESS ENTER TO START', canvas.width / 2, canvas.height / 5 + 40);
     }
     
@@ -430,6 +560,80 @@ function drawWelcomeElements() {
     drawWelcomeInstructions();
     drawAsteroidScoreInfo();
     drawHighScores();
+}
+
+// Draw the welcome screen title with enhanced styling and trail effect
+function drawWelcomeTitle() {
+    const baseY = canvas.height / 5;
+    
+    // Add small random impulse occasionally to maintain motion
+    if (Math.random() < 0.03) { // Increased chance to 3% each frame
+        titleHoverVelocity += (Math.random() - 0.5) * 0.2; // Doubled impulse strength
+    }
+    
+    // Update title physics for smooth floating motion
+    const targetOffset = 0; // Center position
+    const springForce = (targetOffset - titleHoverOffset) * TITLE_SPRING;
+    titleHoverVelocity += springForce;
+    titleHoverVelocity *= TITLE_DAMPING;
+    titleHoverOffset += titleHoverVelocity;
+
+    // Clamp the range of movement
+    if (Math.abs(titleHoverOffset) > TITLE_HOVER_RANGE) {
+        titleHoverOffset = Math.sign(titleHoverOffset) * TITLE_HOVER_RANGE;
+        titleHoverVelocity *= -0.8; // More bouncy rebound
+    }
+
+    ctx.save();
+    
+    // Draw trailing shadows
+    for (let i = TITLE_TRAIL_COUNT; i > 0; i--) {
+        const trailOffset = titleHoverOffset * (i / TITLE_TRAIL_COUNT);
+        const scale = 1 - (i * 0.03); // Each trail slightly smaller
+        const alpha = 0.15 - (i * 0.02); // Each trail more transparent
+        
+        ctx.save();
+        ctx.translate(canvas.width / 2, baseY + trailOffset);
+        ctx.scale(scale, scale);
+        
+        // Draw shadow with gradient
+        ctx.textAlign = 'center';
+        ctx.font = '52px PressStart2P';
+        ctx.fillStyle = `rgba(100, 149, 237, ${alpha})`; // Cornflower blue with fade
+        ctx.fillText('SMASHTEROIDS', 0, 0);
+        
+        ctx.restore();
+    }
+
+    // Draw main title with enhanced effects
+    ctx.textAlign = 'center';
+    
+    // Outer glow
+    ctx.shadowColor = '#FFF';
+    ctx.shadowBlur = 20;
+    ctx.lineWidth = 3;
+    
+    // Stroke outline
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '52px PressStart2P';
+    ctx.strokeText('SMASHTEROIDS', canvas.width / 2, baseY + titleHoverOffset);
+    
+    // Main fill with gradient
+    const gradient = ctx.createLinearGradient(
+        canvas.width / 2,
+        baseY + titleHoverOffset - 30,
+        canvas.width / 2,
+        baseY + titleHoverOffset + 30
+    );
+    gradient.addColorStop(0, '#FFF');
+    gradient.addColorStop(0.5, '#DDD');
+    gradient.addColorStop(1, '#FFF');
+    
+    ctx.fillStyle = gradient;
+    ctx.font = '52px PressStart2P';
+    ctx.fillText('SMASHTEROIDS', canvas.width / 2, baseY + titleHoverOffset);
+    
+    ctx.restore();
 }
 
 /**
@@ -474,7 +678,7 @@ function drawAsteroidScoreInfo() {
     ctx.font = '12px PressStart2P';
     ctx.textAlign = 'center';
     
-    ctx.fillText('ASTEROID POINTS', canvas.width / 4, canvas.height / 2 + 20);
+    ctx.fillText('POINTS GUIDE', canvas.width / 4, canvas.height / 2 + 20);
     
     const asteroidSizes = [
         { size: 3, score: 100, label: 'LARGE' },
@@ -485,6 +689,7 @@ function drawAsteroidScoreInfo() {
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 1;
     
+    // Draw asteroid scores
     asteroidSizes.forEach((asteroid, index) => {
         const y = canvas.height / 2 + 50 + index * 40;
         
@@ -506,6 +711,35 @@ function drawAsteroidScoreInfo() {
         // Score display
         ctx.fillText(`${asteroid.label}: ${asteroid.score} PTS`, canvas.width / 4 + 40, y + 5);
     });
+
+    // Add alien score info
+    const alienY = canvas.height / 2 + 50 + asteroidSizes.length * 40 + 20;
+    
+    // Draw alien ship icon
+    ctx.save();
+    ctx.translate(canvas.width / 4 - 60, alienY);
+    
+    // Draw saucer shape
+    ctx.beginPath();
+    const alienSize = 15;
+    ctx.moveTo(-alienSize, 0);
+    ctx.lineTo(-alienSize/2, -alienSize/2);
+    ctx.lineTo(alienSize/2, -alienSize/2);
+    ctx.lineTo(alienSize, 0);
+    ctx.lineTo(alienSize/2, alienSize/2);
+    ctx.lineTo(-alienSize/2, alienSize/2);
+    ctx.closePath();
+    ctx.stroke();
+    
+    // Draw cockpit
+    ctx.beginPath();
+    ctx.arc(0, 0, alienSize/4, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.restore();
+    
+    // Alien score text
+    ctx.fillText(`ALIEN: ${ALIEN_POINTS} PTS`, canvas.width / 4 + 40, alienY + 5);
 }
 
 /**
@@ -549,8 +783,11 @@ function drawWelcomeAsteroids() {
             const x = asteroid.x + radius * Math.cos(angle + asteroid.angle);
             const y = asteroid.y + radius * Math.sin(angle + asteroid.angle);
             
-            if (j === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            if (j === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
         }
         
         ctx.closePath();
@@ -1120,53 +1357,29 @@ function playTestSound() {
 
 // Initialize game objects - updated to reset score submission time
 function initGame() {
-    // Create player ship
-    ship = {
-        x: canvas.width / 2,
-        y: canvas.height / 2,
-        radius: SHIP_SIZE / 2,
-        angle: 0,
-        rotation: 0,
-        thrusting: false,
-        thrust: {
-            x: 0,
-            y: 0
-        },
-        exploding: false,
-        explodeTime: 0,
-        // Add invulnerability period after respawn
-        invulnerable: true,
-        invulnerableTime: 180 // 3 seconds at 60fps
-    };
-    
-    // Reset aliens and spawn timer
-    aliens = [];
+    // Reset game state
+    score = 0;
+    level = 1;
+    lives = 3;
+    gameStarted = true;
+    gamePaused = false;
+    aliens = []; // Start with empty aliens array
     alienBullets = [];
-    alienSpawnTimer = 0;
+    bullets = [];
+    asteroids = [];
+    logMessages = [];
+    shipDebris = [];
+    alienDebris = [];
+    asteroidDebris = [];
     
-    // Create asteroids
+    // Create ship first
+    respawnShipSafely();
+    
+    // Then create asteroids (which need ship position)
     createAsteroids();
     
-    // Reset game state
-    bullets = [];
-    score = 0;
-    lives = 3;
-    level = 1;
-    
-    // Reset keys
-    keys.left = false;
-    keys.right = false;
-    keys.up = false;
-    keys.space = false;
-    
-    // Reset player initials
-    playerInitials = "AAA";
-    currentInitialIndex = 0;
-    
-    // Reset score submission variables
-    isSubmittingScore = false;
-    scoreSubmitError = null;
-    lastScoreSubmitTime = Date.now();
+    // Reset alien spawn timer
+    nextAlienTime = Date.now() + ALIEN_SPAWN_DELAY + Math.random() * ALIEN_SPAWN_RANDOM;
     
     addLogMessage('Game initialized - Level ' + level);
 }
@@ -1181,7 +1394,7 @@ function createAsteroids() {
         do {
             x = Math.random() * canvas.width;
             y = Math.random() * canvas.height;
-        } while (distBetweenPoints(ship.x, ship.y, x, y) < SHIP_SIZE * 4);
+        } while (ship && distBetweenPoints(ship.x, ship.y, x, y) < SHIP_SIZE * 4);
         
         asteroids.push(createAsteroid(x, y, 3)); // Start with large asteroids (size 3)
     }
@@ -1223,6 +1436,9 @@ function createAsteroid(x, y, size) {
 
 // Update game state
 function updateGame() {
+    // Skip updates if ship doesn't exist yet
+    if (!ship) return;
+    
     // Main game loop handles multiple game states:
     // 1. Normal gameplay - all systems active
     // 2. Post-death state - limited updates during explosion animation
@@ -1264,6 +1480,7 @@ function updateGame() {
     // Update all game objects in specific order to ensure proper interaction
     updateShip();
     updateShipDebris();
+    updateThrustParticles();
     updateBullets();
     updateAsteroids();
     checkCollisions();
@@ -1278,6 +1495,38 @@ function updateGame() {
 
 // Update ship position and rotation using vector-based physics
 function updateShip() {
+    // Handle spawn animation if active
+    if (ship.spawning) {
+        // Update spawn timer
+        ship.spawnTime--;
+        
+        // Calculate animation progress (0 to 1)
+        const progress = 1 - (ship.spawnTime / 60);
+        
+        // Update spawn scale with easing
+        ship.spawnScale = Math.sin(progress * Math.PI / 2);
+        
+        // Update spawn rotation
+        ship.spawnRotation = progress * Math.PI * 4; // Two full rotations
+        
+        // Update spawn particles
+        ship.spawnParticles.forEach(particle => {
+            // Move particles toward ship with easing
+            const ease = Math.sin(progress * Math.PI / 2);
+            particle.x = particle.targetX + (particle.x - particle.targetX) * (1 - ease);
+            particle.y = particle.targetY + (particle.y - particle.targetY) * (1 - ease);
+            particle.alpha = 1 - progress;
+        });
+        
+        // End spawn animation
+        if (ship.spawnTime <= 0) {
+            ship.spawning = false;
+            ship.spawnParticles = [];
+        }
+        
+        return; // Skip regular updates during spawn
+    }
+    
     // Handle explosion state if active
     if (ship.exploding) {
         ship.explodeTime--;
@@ -1285,6 +1534,14 @@ function updateShip() {
             respawnShipSafely();
         }
         return;
+    }
+    
+    // Update invulnerability timer
+    if (ship.invulnerable) {
+        ship.invulnerableTime--;
+        if (ship.invulnerableTime <= 0) {
+            ship.invulnerable = false;
+        }
     }
     
     // Update ship's angular position based on rotation velocity
@@ -1410,8 +1667,27 @@ function respawnShipSafely() {
         exploding: false,
         explodeTime: 0,
         invulnerable: true,
-        invulnerableTime: INVULNERABILITY_TIME
+        invulnerableTime: INVULNERABILITY_TIME,
+        // Add spawn animation properties
+        spawning: true,
+        spawnTime: 60, // 1 second at 60fps
+        spawnParticles: [],
+        spawnScale: 0,
+        spawnRotation: 0
     };
+
+    // Create spawn particles
+    for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        ship.spawnParticles.push({
+            x: newX + Math.cos(angle) * SHIP_SIZE * 2,
+            y: newY + Math.sin(angle) * SHIP_SIZE * 2,
+            targetX: newX,
+            targetY: newY,
+            alpha: 1,
+            size: Math.random() * 2 + 1
+        });
+    }
 }
 
 // Manage player bullet firing with arcade-style limitations
@@ -1446,44 +1722,50 @@ function updateBullets() {
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
         
-        // Move bullet
+        // Update bullet position
         bullet.x += bullet.xv;
         bullet.y += bullet.yv;
         
-        // Remove bullet if it goes off screen
-        if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+        // Wrap bullets around screen edges
+        if (bullet.x < 0) bullet.x = canvas.width;
+        if (bullet.x > canvas.width) bullet.x = 0;
+        if (bullet.y < 0) bullet.y = canvas.height;
+        if (bullet.y > canvas.height) bullet.y = 0;
+        
+        // Check for bullet lifetime
+        bullet.lifetime--;
+        if (bullet.lifetime <= 0) {
             bullets.splice(i, 1);
             continue;
         }
         
         // Check collision with alien
-        if (aliens.length && aliens[0].active) {
-            const dx = bullet.x - aliens[0].x;
-            const dy = bullet.y - aliens[0].y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < ALIEN_SIZE) {
-                // Remove bullet and destroy alien
-                bullets.splice(i, 1);
-                aliens[0].active = false;
-                aliens = [];
-                score += ALIEN_POINTS;
-                playSound('bangLarge');
-                addLogMessage('Alien destroyed! +' + ALIEN_POINTS + ' points');
-                continue;
+        if (aliens.length > 0) {
+            const alien = aliens[0];
+            if (alien.active && !alien.invulnerable) {
+                const dx = bullet.x - alien.x;
+                const dy = bullet.y - alien.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < ALIEN_SIZE) {
+                    // Remove bullet
+                    bullets.splice(i, 1);
+                    
+                    // Calculate hit angle for directional explosion
+                    const hitAngle = Math.atan2(dy, dx);
+                    
+                    // Destroy alien with bullet hit effect
+                    destroyAlien(alien, true, hitAngle);
+                    continue;
+                }
             }
         }
         
         // Check collision with asteroids
         for (let j = asteroids.length - 1; j >= 0; j--) {
             if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
-                // Remove the bullet
                 bullets.splice(i, 1);
-                
-                // Break the asteroid
                 destroyAsteroid(j);
-                
-                // No need to check other bullets for this asteroid
                 break;
             }
         }
@@ -1525,10 +1807,6 @@ function handleEdgeOfScreen(obj) {
 
 // Check for collisions between game objects
 function checkCollisions() {
-    // Implement efficient collision detection using distance-based checks
-    // Only check collisions between objects that are close enough to possibly collide
-    // This reduces unnecessary calculations and improves performance
-    
     // Check ship collisions with asteroids (if ship is vulnerable)
     if (ship && !ship.exploding && !ship.invulnerable) {
         for (let i = 0; i < asteroids.length; i++) {
@@ -1539,18 +1817,86 @@ function checkCollisions() {
         }
     }
     
-    // Check bullet collisions with asteroids
-    // Iterate backwards to safely remove objects during iteration
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        for (let j = asteroids.length - 1; j >= 0; j--) {
-            if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
-                // Remove bullet and destroy asteroid
-                bullets.splice(i, 1);
-                destroyAsteroid(j);
+    // Check ship collisions with aliens
+    if (ship && !ship.exploding && !ship.invulnerable) {
+        for (let i = aliens.length - 1; i >= 0; i--) {
+            const alien = aliens[i];
+            if (!alien.invulnerable && distBetweenPoints(ship.x, ship.y, alien.x, alien.y) < ship.radius + ALIEN_SIZE) {
+                // Destroy both ship and alien
+                destroyShip();
+                destroyAlien(alien, false); // false indicates collision rather than shot
                 break;
             }
         }
     }
+    
+    // Check alien collisions with asteroids
+    for (let i = aliens.length - 1; i >= 0; i--) {
+        const alien = aliens[i];
+        if (!alien.invulnerable) { // Only check collisions if not invulnerable
+            for (let j = asteroids.length - 1; j >= 0; j--) {
+                const asteroid = asteroids[j];
+                const dx = alien.x - asteroid.x;
+                const dy = alien.y - asteroid.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < ALIEN_SIZE + asteroid.radius) {
+                    // Calculate collision angle for debris direction
+                    const collisionAngle = Math.atan2(dy, dx);
+                    
+                    // Destroy both alien and asteroid
+                    destroyAlien(alien, false, collisionAngle);
+                    destroyAsteroid(j, collisionAngle);
+                    
+                    // Add dramatic collision effect
+                    createCollisionEffect(
+                        (alien.x + asteroid.x) / 2,
+                        (alien.y + asteroid.y) / 2,
+                        collisionAngle
+                    );
+                    
+                    // Break out of asteroid loop since alien is destroyed
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Add collision effect function
+function createCollisionEffect(x, y, angle) {
+    // Create a bright flash
+    alienDebris.push({
+        x: x,
+        y: y,
+        radius: 1,
+        maxRadius: ALIEN_EXPLOSION_RADIUS * 1.5,
+        lifetime: 20,
+        type: 'shockwave',
+        color: '#FFFFFF' // White flash
+    });
+    
+    // Create intersection debris
+    for (let i = 0; i < 8; i++) {
+        const debrisAngle = angle + (Math.random() - 0.5) * Math.PI;
+        const speed = ALIEN_DEBRIS_SPEED * (0.8 + Math.random() * 0.4);
+        
+        alienDebris.push({
+            x: x,
+            y: y,
+            vx: Math.cos(debrisAngle) * speed,
+            vy: Math.sin(debrisAngle) * speed,
+            size: 3 + Math.random() * 2,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.4,
+            lifetime: ALIEN_DEBRIS_LIFETIME * 0.7,
+            color: '#FFA500', // Orange for collision debris
+            type: 'line'
+        });
+    }
+    
+    // Play a more intense explosion sound
+    playSound('explode');
 }
 
 // Destroy the ship
@@ -1728,7 +2074,11 @@ function destroyAsteroid(index) {
     const asteroid = asteroids[index];
     // Score increases with level
     const levelBonus = Math.floor((level - 1) * 0.5 * SCORE_MULTIPLIER); // 50% more points per level
-    score += (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
+    const points = (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
+    score += points;
+    
+    // Create score popup
+    createScorePopup(asteroid.x, asteroid.y, points);
     
     // Play appropriate explosion sound based on asteroid size
     if (asteroid.size === 3) {
@@ -1778,12 +2128,64 @@ function drawGame() {
     // Draw bullets
     drawBullets();
     
+    // Draw score popups
+    drawScorePopups();
+    
     // Draw game info (score, lives, level)
     drawGameInfo();
 }
 
+// Initialize particle system
+let thrustParticles = [];
+
 // Draw the player's ship
 function drawShip() {
+    if (ship.spawning) {
+        // Draw spawn particles
+        ctx.strokeStyle = 'white';
+        ship.spawnParticles.forEach(particle => {
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(255, 255, 255, ${particle.alpha})`;
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        // Draw materializing ship
+        ctx.save();
+        ctx.translate(ship.x, ship.y);
+        ctx.rotate(ship.spawnRotation);
+        ctx.scale(ship.spawnScale, ship.spawnScale);
+        
+        // Draw ship with special effects
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        
+        // Create energy field effect
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, ship.radius * 2);
+        gradient.addColorStop(0, 'rgba(100, 200, 255, 0.5)');
+        gradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, ship.radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw ship outline with glow
+        ctx.shadowColor = '#4169E1';
+        ctx.shadowBlur = 10;
+        drawShipShape(0, 0, ship.radius);
+        
+        ctx.restore();
+        return;
+    }
+
+    // Apply thrust shake if thrusting
+    let drawX = ship.x;
+    let drawY = ship.y;
+    if (ship.thrusting) {
+        drawX += (Math.random() - 0.5) * THRUST_SHAKE_AMOUNT;
+        drawY += (Math.random() - 0.5) * THRUST_SHAKE_AMOUNT;
+    }
+
     // Draw ship
     ctx.strokeStyle = 'white';
     
@@ -1796,16 +2198,16 @@ function drawShip() {
     ctx.beginPath();
     
     // Nose of the ship - make it more pronounced by extending it further
-    const noseX = ship.x + 1.7 * ship.radius * Math.cos(ship.angle);
-    const noseY = ship.y - 1.7 * ship.radius * Math.sin(ship.angle);
+    const noseX = drawX + 1.7 * ship.radius * Math.cos(ship.angle);
+    const noseY = drawY - 1.7 * ship.radius * Math.sin(ship.angle);
     
     // Rear left - widen the base
-    const rearLeftX = ship.x - ship.radius * (0.8 * Math.cos(ship.angle) + 1.2 * Math.sin(ship.angle));
-    const rearLeftY = ship.y + ship.radius * (0.8 * Math.sin(ship.angle) - 1.2 * Math.cos(ship.angle));
+    const rearLeftX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) + 1.2 * Math.sin(ship.angle));
+    const rearLeftY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) - 1.2 * Math.cos(ship.angle));
     
     // Rear right - widen the base
-    const rearRightX = ship.x - ship.radius * (0.8 * Math.cos(ship.angle) - 1.2 * Math.sin(ship.angle));
-    const rearRightY = ship.y + ship.radius * (0.8 * Math.sin(ship.angle) + 1.2 * Math.cos(ship.angle));
+    const rearRightX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) - 1.2 * Math.sin(ship.angle));
+    const rearRightY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) + 1.2 * Math.cos(ship.angle));
     
     // Draw the main triangle
     ctx.moveTo(noseX, noseY);
@@ -1815,41 +2217,151 @@ function drawShip() {
     ctx.stroke();
     
     // Add a center line to emphasize direction
-    const centerRearX = ship.x - ship.radius * 0.5 * Math.cos(ship.angle);
-    const centerRearY = ship.y + ship.radius * 0.5 * Math.sin(ship.angle);
+    const centerRearX = drawX - ship.radius * 0.5 * Math.cos(ship.angle);
+    const centerRearY = drawY + ship.radius * 0.5 * Math.sin(ship.angle);
     
     ctx.beginPath();
     ctx.moveTo(noseX, noseY);
     ctx.lineTo(centerRearX, centerRearY);
     ctx.stroke();
     
-    // Draw thruster
+    // Draw enhanced thruster with gradient
     if (ship.thrusting) {
-        ctx.fillStyle = 'orangered';
+        // Create gradient for flame
+        const rearX = drawX - ship.radius * 1.2 * Math.cos(ship.angle);
+        const rearY = drawY + ship.radius * 1.2 * Math.sin(ship.angle);
+        const flameSize = THRUST_FLAME_BASE + Math.random() * THRUST_FLAME_VARIANCE;
+        const flameTipX = drawX - ship.radius * (1.2 + flameSize) * Math.cos(ship.angle);
+        const flameTipY = drawY + ship.radius * (1.2 + flameSize) * Math.sin(ship.angle);
+        
+        const gradient = ctx.createLinearGradient(rearX, rearY, flameTipX, flameTipY);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');   // White core
+        gradient.addColorStop(0.2, 'rgba(255, 200, 50, 0.8)');  // Yellow/orange
+        gradient.addColorStop(0.4, 'rgba(255, 100, 50, 0.6)');  // Orange/red
+        gradient.addColorStop(1, 'rgba(255, 50, 50, 0)');       // Fade to transparent
+        
+        ctx.fillStyle = gradient;
         ctx.beginPath();
-        
-        // Rear center - position it at the base of the ship
-        const rearX = ship.x - ship.radius * 1.2 * Math.cos(ship.angle);
-        const rearY = ship.y + ship.radius * 1.2 * Math.sin(ship.angle);
-        
-        // Make the thruster flame more dynamic
-        const flameSize = 0.8 + 0.4 * Math.random(); // Random flicker effect
-        const flameTipX = ship.x - ship.radius * (1.2 + flameSize) * Math.cos(ship.angle);
-        const flameTipY = ship.y + ship.radius * (1.2 + flameSize) * Math.sin(ship.angle);
-        
         ctx.moveTo(rearLeftX, rearLeftY);
         ctx.lineTo(flameTipX, flameTipY);
         ctx.lineTo(rearRightX, rearRightY);
         ctx.closePath();
         ctx.fill();
+        
+        // Add new particles with enhanced properties
+        if (thrustParticles.length < THRUST_PARTICLE_COUNT) {
+            const angle = ship.angle + Math.PI + (Math.random() - 0.5) * THRUST_PARTICLE_SPREAD;
+            addThrustParticle(rearX, rearY, angle, THRUST_PARTICLE_SPEED, ship.thrust.x, ship.thrust.y);
+        }
     }
     
-    // Draw invulnerability shield
-    if (ship.invulnerable) {
+    // Draw thrust particles with enhanced rotation and pulsing
+    ctx.lineWidth = 1;
+    for (let i = thrustParticles.length - 1; i >= 0; i--) {
+        const particle = thrustParticles[i];
+        const lifeRatio = particle.life / THRUST_PARTICLE_LIFETIME;
+        const pulseSize = particle.baseSize * (0.8 + 0.4 * Math.sin(frameCount * 0.2 + particle.pulseOffset));
+        
+        ctx.save();
+        ctx.translate(particle.x, particle.y);
+        ctx.rotate(particle.rotation);
+        
+        // Create particle gradient with more vibrant colors
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, pulseSize * 2);
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${lifeRatio})`);
+        gradient.addColorStop(0.4, `rgba(255, 200, 50, ${lifeRatio * 0.8})`);
+        gradient.addColorStop(0.7, `rgba(255, 100, 50, ${lifeRatio * 0.5})`);
+        gradient.addColorStop(1, 'rgba(255, 50, 50, 0)');
+        
+        ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(100, 200, 255, 0.3)';
-        ctx.arc(ship.x, ship.y, ship.radius * 1.5, 0, Math.PI * 2, false);
-        ctx.stroke();
+        
+        // Draw more dynamic particle shape
+        const innerSize = pulseSize * 0.5;
+        ctx.moveTo(0, -pulseSize);
+        ctx.lineTo(innerSize, -innerSize);
+        ctx.lineTo(pulseSize, 0);
+        ctx.lineTo(innerSize, innerSize);
+        ctx.lineTo(0, pulseSize);
+        ctx.lineTo(-innerSize, innerSize);
+        ctx.lineTo(-pulseSize, 0);
+        ctx.lineTo(-innerSize, -innerSize);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+    
+    // Draw enhanced invulnerability shield
+    if (ship.invulnerable) {
+        const warningPhase = ship.invulnerableTime < 60; // Last second warning
+        const pulseSpeed = warningPhase ? 0.4 : 0.1; // Faster pulse during warning
+        const baseOpacity = warningPhase ? 0.5 : 0.3;
+        const pulseOpacity = Math.sin(frameCount * pulseSpeed) * 0.2 + baseOpacity;
+        
+        // Warning flicker effect
+        if (!warningPhase || Math.floor(frameCount / 3) % 2 === 0) {
+            // Inner shield
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(100, 200, 255, ${pulseOpacity})`;
+            ctx.lineWidth = 2;
+            ctx.arc(drawX, drawY, ship.radius * 1.5, 0, Math.PI * 2, false);
+            ctx.stroke();
+            
+            // Outer glow
+            ctx.beginPath();
+            const gradient = ctx.createRadialGradient(
+                drawX, drawY, ship.radius * 1.3,
+                drawX, drawY, ship.radius * 2
+            );
+            gradient.addColorStop(0, `rgba(100, 200, 255, ${pulseOpacity * 0.5})`);
+            gradient.addColorStop(1, 'rgba(100, 200, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.arc(drawX, drawY, ship.radius * 2, 0, Math.PI * 2, false);
+            ctx.fill();
+            
+            // Energy particles
+            const particleCount = warningPhase ? 3 : 6;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (frameCount * 0.05) + (i * Math.PI * 2 / particleCount);
+                const orbitRadius = ship.radius * 1.5;
+                const particleX = drawX + Math.cos(angle) * orbitRadius;
+                const particleY = drawY + Math.sin(angle) * orbitRadius;
+                
+                ctx.beginPath();
+                ctx.fillStyle = `rgba(150, 220, 255, ${pulseOpacity})`;
+                ctx.arc(particleX, particleY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+}
+
+// Update thrust particles with enhanced animation
+function updateThrustParticles() {
+    for (let i = thrustParticles.length - 1; i >= 0; i--) {
+        const particle = thrustParticles[i];
+        
+        // Update position with velocity
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        
+        // Apply continuous rotation
+        particle.rotation += particle.rotationSpeed;
+        
+        // Handle screen wrapping
+        if (particle.x < 0) particle.x = canvas.width;
+        if (particle.x > canvas.width) particle.x = 0;
+        if (particle.y < 0) particle.y = canvas.height;
+        if (particle.y > canvas.height) particle.y = 0;
+        
+        // Update lifetime
+        particle.life--;
+        
+        // Remove dead particles
+        if (particle.life <= 0) {
+            thrustParticles.splice(i, 1);
+        }
     }
 }
 
@@ -2209,12 +2721,36 @@ function updateAliens() {
             ALIEN_BASE_SPAWN_INTERVAL - (level - 1) * ALIEN_SPAWN_INTERVAL_DECREASE
         );
         alienSpawnTimer = spawnInterval;
-        spawnAlien();
+        createAlien(); // Changed from spawnAlien to createAlien
     }
     
     // Update each alien's behavior and state
     for (let i = aliens.length - 1; i >= 0; i--) {
         const alien = aliens[i];
+        
+        // Update spawn animation
+        if (alien.spawnTime > 0) {
+            alien.spawnTime--;
+            alien.scale = 1 - (alien.spawnTime / ALIEN_SPAWN_EFFECT_DURATION);
+        }
+        
+        // Update invulnerability
+        if (alien.invulnerable) {
+            alien.invulnerableTime--;
+            if (alien.invulnerableTime <= 0) {
+                alien.invulnerable = false;
+                // Add a flash effect when invulnerability ends
+                alienDebris.push({
+                    x: alien.x,
+                    y: alien.y,
+                    radius: 1,
+                    maxRadius: ALIEN_SIZE * 2,
+                    lifetime: 20,
+                    type: 'shockwave',
+                    color: '#00FFFF'
+                });
+            }
+        }
         
         // Move alien and handle screen wrapping
         alien.x += alien.dx;
@@ -2250,7 +2786,7 @@ function updateAliens() {
         alien.dy *= ALIEN_FRICTION;
         
         // Implement intelligent shooting behavior
-        if (ship && !ship.exploding && alienBullets.length < ALIEN_MAX_BULLETS) {
+        if (!alien.invulnerable && alien.active && ship && !ship.exploding && alienBullets.length < ALIEN_MAX_BULLETS) {
             alien.fireTimer++;
             // Randomize fire rate for unpredictability
             const fireRate = ALIEN_FIRE_RATE_MIN + Math.random() * (ALIEN_FIRE_RATE_MAX - ALIEN_FIRE_RATE_MIN);
@@ -2322,22 +2858,58 @@ function createAlien() {
             break;
     }
     
+    // Create spawn particles in a circle around spawn point
+    for (let i = 0; i < ALIEN_SPAWN_PARTICLES; i++) {
+        const angle = (i / ALIEN_SPAWN_PARTICLES) * Math.PI * 2;
+        const distance = ALIEN_SIZE * 3;
+        alienDebris.push({
+            x: x + Math.cos(angle) * distance,
+            y: y + Math.sin(angle) * distance,
+            vx: Math.cos(angle) * -2,
+            vy: Math.sin(angle) * -2,
+            size: 2 + Math.random() * 2,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.2,
+            lifetime: ALIEN_SPAWN_EFFECT_DURATION,
+            color: '#00FFFF',
+            type: 'circle',
+            isSpawnEffect: true
+        });
+    }
+
+    // Create the shockwave effect
+    alienDebris.push({
+        x: x,
+        y: y,
+        radius: 1,
+        maxRadius: ALIEN_SIZE * 4,
+        lifetime: ALIEN_SPAWN_EFFECT_DURATION,
+        type: 'shockwave',
+        color: '#00FFFF',
+        isSpawnEffect: true
+    });
+    
     aliens.push({
         x: x,
         y: y,
         dx: dx,
         dy: dy,
-        radius: ALIEN_SIZE, // Add radius property for proper wrapping
+        radius: ALIEN_SIZE,
         angle: 0,
         rotation: 0,
         targetAngle: 0,
         fireTimer: 0,
         directionTimer: 0,
         active: true,
-        thrusting: false
+        thrusting: false,
+        invulnerable: true,
+        invulnerableTime: ALIEN_INVULNERABILITY_TIME,
+        spawnTime: ALIEN_SPAWN_EFFECT_DURATION,
+        scale: 0 // Start small and grow
     });
     
-    addLogMessage('New alien spacecraft appeared!');
+    playSound('spawn'); // Add a spawn sound effect
+    addLogMessage('New alien spacecraft warped in!');
 }
 
 // Draw aliens
@@ -2348,12 +2920,24 @@ function drawAliens() {
     for (let i = 0; i < aliens.length; i++) {
         const alien = aliens[i];
         
-        // Save the current context state
         ctx.save();
+        
+        // Apply spawn scaling effect
+        if (alien.spawnTime > 0) {
+            ctx.translate(alien.x, alien.y);
+            ctx.scale(alien.scale, alien.scale);
+            ctx.translate(-alien.x, -alien.y);
+        }
         
         // Translate to alien's position and rotate
         ctx.translate(alien.x, alien.y);
         ctx.rotate(alien.angle);
+
+        // Flash effect for invulnerability
+        if (alien.invulnerable) {
+            ctx.strokeStyle = `hsl(${frameCount * 10 % 360}, 100%, 50%)`;
+            ctx.globalAlpha = 0.5 + Math.sin(frameCount * 0.2) * 0.5;
+        }
 
         // Draw saucer shape
         ctx.beginPath();
@@ -2371,21 +2955,29 @@ function drawAliens() {
         ctx.arc(0, 0, ALIEN_SIZE/4, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Draw thrust if active - Fixed direction to match movement
+        // Draw invulnerability shield effect
+        if (alien.invulnerable) {
+            ctx.beginPath();
+            ctx.arc(0, 0, ALIEN_SIZE * 1.2, 0, Math.PI * 2);
+            ctx.strokeStyle = `hsl(${frameCount * 5 % 360}, 100%, 70%)`;
+            ctx.globalAlpha = 0.3;
+            ctx.stroke();
+        }
+
+        // Draw thrust if active
         if (alien.thrusting) {
             ctx.fillStyle = 'orangered';
             ctx.beginPath();
             const flameSize = 0.8 + 0.4 * Math.random(); // Random flicker effect
-            ctx.moveTo(-ALIEN_SIZE/2, 0);
+            
+            // Center the flame at the back of the saucer
+            ctx.moveTo(-ALIEN_SIZE, -ALIEN_SIZE/4);
             ctx.lineTo(-ALIEN_SIZE - ALIEN_SIZE * flameSize, 0);
-            ctx.lineTo(-ALIEN_SIZE/2, ALIEN_SIZE/3);
-            ctx.moveTo(-ALIEN_SIZE/2, 0);
-            ctx.lineTo(-ALIEN_SIZE/2, -ALIEN_SIZE/3);
+            ctx.lineTo(-ALIEN_SIZE, ALIEN_SIZE/4);
             ctx.closePath();
             ctx.fill();
         }
 
-        // Restore the context state
         ctx.restore();
     }
 }
@@ -2458,4 +3050,436 @@ function drawAlienBullets() {
         ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
         ctx.fill();
     });
-} 
+}
+
+// Add new particles with rotation and pulse properties
+function addThrustParticle(x, y, angle, baseSpeed, inheritedVx, inheritedVy) {
+    const speed = baseSpeed * (0.5 + Math.random());
+    thrustParticles.push({
+        x: x + (Math.random() - 0.5) * 4,
+        y: y + (Math.random() - 0.5) * 4,
+        vx: Math.cos(angle) * speed + inheritedVx,
+        vy: -Math.sin(angle) * speed + inheritedVy,
+        life: THRUST_PARTICLE_LIFETIME,
+        rotation: Math.random() * Math.PI * 2,        // Random initial rotation
+        rotationSpeed: (Math.random() - 0.5) * 0.4,  // Increased rotation speed
+        pulseOffset: Math.random() * Math.PI * 2,     // Random pulse phase
+        baseSize: THRUST_PARTICLE_SIZE * (0.7 + Math.random() * 0.6)
+    });
+}
+
+// Helper function to draw ship shape
+function drawShipShape(x, y, radius) {
+    ctx.beginPath();
+    // Slightly adjusted ratios for a sleeker look with the smaller size
+    ctx.moveTo( // nose of the ship
+        x + radius * Math.cos(0),
+        y - radius * Math.sin(0)
+    );
+    ctx.lineTo( // rear left
+        x - radius * (0.8 * Math.cos(0) + 0.6 * Math.sin(0)),
+        y + radius * (0.8 * Math.sin(0) - 0.6 * Math.cos(0))
+    );
+    ctx.lineTo( // rear center
+        x - radius * 0.5 * Math.cos(0),
+        y + radius * 0.5 * Math.sin(0)
+    );
+    ctx.lineTo( // rear right
+        x - radius * (0.8 * Math.cos(0) - 0.6 * Math.sin(0)),
+        y + radius * (0.8 * Math.sin(0) + 0.6 * Math.cos(0))
+    );
+    ctx.closePath();
+}
+
+// Add alien explosion system constants
+const ALIEN_DEBRIS_COUNT = 15;
+const ALIEN_DEBRIS_SPEED = 3;
+const ALIEN_DEBRIS_LIFETIME = 60;
+const ALIEN_EXPLOSION_RADIUS = 40;
+
+// Add alien debris array to store explosion particles
+let alienDebris = [];
+
+// Update alien explosion function to be more dramatic
+function destroyAlien(alien, wasShot = true, collisionAngle = null) {
+    const ENHANCED_DEBRIS_COUNT = 25; // More debris
+    const ENHANCED_EXPLOSION_RADIUS = 60; // Larger explosion
+    const CORE_FLASH_COUNT = 3; // Multiple flash rings
+    
+    // Create multiple shockwave rings
+    for (let i = 0; i < CORE_FLASH_COUNT; i++) {
+        const delay = i * 5; // Stagger the rings
+        setTimeout(() => {
+            alienDebris.push({
+                x: alien.x,
+                y: alien.y,
+                radius: 1,
+                maxRadius: ENHANCED_EXPLOSION_RADIUS * (1 - i * 0.2),
+                lifetime: 30 - i * 5,
+                type: 'shockwave',
+                color: i === 0 ? '#FFFFFF' : (wasShot ? '#FF4500' : '#FFA500')
+            });
+        }, delay);
+    }
+    
+    // Create core explosion particles
+    for (let i = 0; i < ENHANCED_DEBRIS_COUNT; i++) {
+        let angle;
+        if (collisionAngle !== null) {
+            // Directional explosion for collisions
+            angle = collisionAngle + (Math.random() - 0.5) * Math.PI;
+        } else {
+            // Circular explosion pattern
+            angle = (i / ENHANCED_DEBRIS_COUNT) * Math.PI * 2;
+        }
+        
+        const speed = ALIEN_DEBRIS_SPEED * (0.5 + Math.random());
+        const size = 2 + Math.random() * 3;
+        
+        // Create main debris
+        alienDebris.push({
+            x: alien.x,
+            y: alien.y,
+            vx: Math.cos(angle) * speed + (alien.dx || 0) * 0.5,
+            vy: Math.sin(angle) * speed + (alien.dy || 0) * 0.5,
+            size: size,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.4,
+            lifetime: ALIEN_DEBRIS_LIFETIME,
+            color: Math.random() < 0.6 ? '#FF4500' : (Math.random() < 0.5 ? '#FFD700' : '#FFFFFF'),
+            type: Math.random() < 0.3 ? 'circle' : 'line'
+        });
+        
+        // Add smaller trailing particles
+        if (Math.random() < 0.5) {
+            alienDebris.push({
+                x: alien.x,
+                y: alien.y,
+                vx: Math.cos(angle) * speed * 0.7,
+                vy: Math.sin(angle) * speed * 0.7,
+                size: size * 0.5,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.2,
+                lifetime: ALIEN_DEBRIS_LIFETIME * 0.7,
+                color: '#FFA500',
+                type: 'circle',
+                isTrail: true
+            });
+        }
+    }
+    
+    // Add score only if shot (not from collision)
+    if (wasShot) {
+        score += ALIEN_POINTS;
+        createScorePopup(alien.x, alien.y, ALIEN_POINTS);
+    }
+    
+    // Enhanced explosion sound
+    playSound('explode');
+    
+    // Remove the alien
+    aliens = aliens.filter(a => a !== alien);
+    addLogMessage('Alien destroyed in spectacular explosion!');
+}
+
+// Update alien debris
+function updateAlienDebris() {
+    for (let i = alienDebris.length - 1; i >= 0; i--) {
+        const debris = alienDebris[i];
+        
+        if (debris.type === 'shockwave') {
+            // Update shockwave
+            debris.radius += (debris.maxRadius - debris.radius) * 0.2;
+            debris.lifetime--;
+            
+            if (debris.lifetime <= 0) {
+                alienDebris.splice(i, 1);
+            }
+        } else {
+            // Update normal debris
+            debris.x += debris.vx;
+            debris.y += debris.vy;
+            debris.rotation += debris.rotationSpeed;
+            debris.lifetime--;
+            
+            // Handle screen wrapping
+            handleEdgeOfScreen(debris);
+            
+            if (debris.lifetime <= 0) {
+                alienDebris.splice(i, 1);
+            }
+        }
+    }
+}
+
+// Draw alien debris
+function drawAlienDebris() {
+    for (const debris of alienDebris) {
+        if (debris.type === 'shockwave') {
+            // Draw shockwave with custom color
+            const opacity = debris.lifetime / 30;
+            const color = debris.color || '#FF4500';
+            ctx.strokeStyle = color.replace(')', `, ${opacity})`).replace('rgb', 'rgba');
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(debris.x, debris.y, debris.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Enhanced inner glow
+            const gradient = ctx.createRadialGradient(
+                debris.x, debris.y, 0,
+                debris.x, debris.y, debris.radius
+            );
+            const glowColor = color === '#FFFFFF' ? 'rgba(255, 255, 255, ' : 'rgba(255, 200, 0, ';
+            gradient.addColorStop(0, glowColor + (opacity * 0.7) + ')');
+            gradient.addColorStop(0.6, glowColor + (opacity * 0.3) + ')');
+            gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        } else {
+            ctx.save();
+            ctx.translate(debris.x, debris.y);
+            ctx.rotate(debris.rotation);
+            
+            const opacity = debris.lifetime / ALIEN_DEBRIS_LIFETIME;
+            ctx.fillStyle = debris.color + Math.floor(opacity * 255).toString(16).padStart(2, '0');
+            
+            // Draw debris with enhanced effects
+            if (debris.type === 'circle') {
+                ctx.beginPath();
+                ctx.arc(0, 0, debris.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add glow for non-trail particles
+                if (!debris.isTrail) {
+                    ctx.shadowColor = debris.color;
+                    ctx.shadowBlur = 5;
+                    ctx.fill();
+                }
+            } else {
+                // Enhanced line debris
+                ctx.shadowColor = debris.color;
+                ctx.shadowBlur = 3;
+                ctx.fillRect(-debris.size, -1, debris.size * 2, 2);
+            }
+            
+            ctx.restore();
+        }
+    }
+}
+
+// Add asteroid debris system
+const ASTEROID_DEBRIS_COUNT = 12;
+const ASTEROID_DEBRIS_SPEED = 2;
+const ASTEROID_DEBRIS_LIFETIME = 45;
+let asteroidDebris = [];
+
+// Enhanced asteroid destruction
+function destroyAsteroid(index, collisionAngle = null) {
+    const asteroid = asteroids[index];
+    const points = Math.ceil(100 * (4 - asteroid.size)); // Points based on size
+    
+    // Create core explosion effect
+    createAsteroidExplosion(asteroid, collisionAngle);
+    
+    // Split into smaller asteroids if large enough
+    if (asteroid.size > 1) {
+        // Create 2-3 smaller asteroids
+        const numNewAsteroids = Math.random() < 0.5 ? 2 : 3;
+        for (let i = 0; i < numNewAsteroids; i++) {
+            // Calculate split angle
+            const splitAngle = (i / numNewAsteroids) * Math.PI * 2;
+            const finalAngle = collisionAngle !== null ? 
+                collisionAngle + splitAngle : splitAngle;
+            
+            // Create new asteroid with inherited velocity
+            const speed = BASE_ASTEROID_SPEED * (4 - asteroid.size) * 0.5;
+            const newAsteroid = createAsteroid(
+                asteroid.x + Math.cos(finalAngle) * asteroid.radius * 0.5,
+                asteroid.y + Math.sin(finalAngle) * asteroid.radius * 0.5,
+                asteroid.size - 1
+            );
+            
+            // Add split velocity
+            newAsteroid.dx += Math.cos(finalAngle) * speed;
+            newAsteroid.dy += Math.sin(finalAngle) * speed;
+            
+            // Add rotation based on split direction
+            newAsteroid.rotationSpeed *= (Math.random() < 0.5 ? 1 : -1) * 1.5;
+            
+            // Create split effect debris
+            createSplitDebris(asteroid, finalAngle);
+            
+            asteroids.push(newAsteroid);
+        }
+    }
+    
+    // Remove the original asteroid
+    asteroids.splice(index, 1);
+    
+    // Add score and create score popup
+    score += points;
+    createScorePopup(asteroid.x, asteroid.y, points);
+    
+    // Play sound
+    playSound('explode');
+}
+
+// Create asteroid explosion effect
+function createAsteroidExplosion(asteroid, collisionAngle = null) {
+    const debrisCount = ASTEROID_DEBRIS_COUNT * asteroid.size;
+    
+    // Create rock fragments
+    for (let i = 0; i < debrisCount; i++) {
+        let angle;
+        if (collisionAngle !== null) {
+            // Directional explosion
+            angle = collisionAngle + (Math.random() - 0.5) * Math.PI;
+        } else {
+            // Circular explosion
+            angle = (i / debrisCount) * Math.PI * 2;
+        }
+        
+        const speed = ASTEROID_DEBRIS_SPEED * (0.5 + Math.random());
+        const size = (asteroid.size * 2) * (0.5 + Math.random() * 0.5);
+        
+        // Create main debris
+        asteroidDebris.push({
+            x: asteroid.x,
+            y: asteroid.y,
+            vx: Math.cos(angle) * speed + asteroid.dx * 0.5,
+            vy: Math.sin(angle) * speed + asteroid.dy * 0.5,
+            size: size,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.2,
+            lifetime: ASTEROID_DEBRIS_LIFETIME,
+            color: '#A0A0A0',
+            vertices: generateDebrisVertices(size),
+            alpha: 1
+        });
+    }
+    
+    // Create dust cloud effect
+    for (let i = 0; i < debrisCount / 2; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = ASTEROID_DEBRIS_SPEED * 0.5 * Math.random();
+        asteroidDebris.push({
+            x: asteroid.x,
+            y: asteroid.y,
+            vx: Math.cos(angle) * speed + asteroid.dx * 0.3,
+            vy: Math.sin(angle) * speed + asteroid.dy * 0.3,
+            size: asteroid.size * 3,
+            lifetime: ASTEROID_DEBRIS_LIFETIME * 0.7,
+            type: 'dust',
+            alpha: 0.3 + Math.random() * 0.2
+        });
+    }
+}
+
+// Create debris for asteroid splits
+function createSplitDebris(asteroid, angle) {
+    const splitDebrisCount = 6;
+    const spreadAngle = Math.PI / 4; // 45-degree spread
+    
+    for (let i = 0; i < splitDebrisCount; i++) {
+        const debrisAngle = angle + (Math.random() - 0.5) * spreadAngle;
+        const speed = ASTEROID_DEBRIS_SPEED * (0.3 + Math.random() * 0.7);
+        
+        asteroidDebris.push({
+            x: asteroid.x,
+            y: asteroid.y,
+            vx: Math.cos(debrisAngle) * speed + asteroid.dx * 0.3,
+            vy: Math.sin(debrisAngle) * speed + asteroid.dy * 0.3,
+            size: asteroid.size * 1.5,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.3,
+            lifetime: ASTEROID_DEBRIS_LIFETIME * 0.6,
+            color: '#808080',
+            vertices: generateDebrisVertices(asteroid.size * 1.5),
+            alpha: 0.7 + Math.random() * 0.3
+        });
+    }
+}
+
+// Generate vertices for debris pieces
+function generateDebrisVertices(size) {
+    const vertices = [];
+    const numVertices = 3 + Math.floor(Math.random() * 3); // 3-5 vertices
+    
+    for (let i = 0; i < numVertices; i++) {
+        const angle = (i / numVertices) * Math.PI * 2;
+        const radius = size * (0.7 + Math.random() * 0.3);
+        vertices.push({
+            x: Math.cos(angle) * radius,
+            y: Math.sin(angle) * radius
+        });
+    }
+    
+    return vertices;
+}
+
+// Update asteroid debris
+function updateAsteroidDebris() {
+    for (let i = asteroidDebris.length - 1; i >= 0; i--) {
+        const debris = asteroidDebris[i];
+        
+        // Update position
+        debris.x += debris.vx;
+        debris.y += debris.vy;
+        
+        // Update rotation if it's a rock fragment
+        if (debris.rotation !== undefined) {
+            debris.rotation += debris.rotationSpeed;
+        }
+        
+        // Handle screen wrapping
+        handleEdgeOfScreen(debris);
+        
+        // Update lifetime and alpha
+        debris.lifetime--;
+        debris.alpha = debris.lifetime / ASTEROID_DEBRIS_LIFETIME;
+        
+        // Remove dead debris
+        if (debris.lifetime <= 0) {
+            asteroidDebris.splice(i, 1);
+        }
+    }
+}
+
+// Draw asteroid debris
+function drawAsteroidDebris() {
+    for (const debris of asteroidDebris) {
+        ctx.save();
+        ctx.translate(debris.x, debris.y);
+        
+        if (debris.type === 'dust') {
+            // Draw dust particle
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, debris.size);
+            gradient.addColorStop(0, `rgba(169, 169, 169, ${debris.alpha})`);
+            gradient.addColorStop(1, 'rgba(169, 169, 169, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, debris.size, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Draw rock fragment
+            ctx.rotate(debris.rotation);
+            ctx.fillStyle = `rgba(128, 128, 128, ${debris.alpha})`;
+            ctx.strokeStyle = `rgba(169, 169, 169, ${debris.alpha})`;
+            ctx.lineWidth = 1;
+            
+            // Draw debris shape
+            ctx.beginPath();
+            ctx.moveTo(debris.vertices[0].x, debris.vertices[0].y);
+            for (let i = 1; i < debris.vertices.length; i++) {
+                ctx.lineTo(debris.vertices[i].x, debris.vertices[i].y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+}
+  

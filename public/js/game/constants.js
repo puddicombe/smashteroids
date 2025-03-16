@@ -1,6 +1,6 @@
 // Game mechanics
 export const SHIP_SIZE = 20;
-export const SHIP_THRUST = 0.1;
+export const SHIP_THRUST = 0.2;
 export const SHIP_ROTATION_SPEED = 0.1;
 export const FRICTION = 0.99;
 export const BULLET_SPEED = 7;
