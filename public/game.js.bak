@@ -720,181 +720,18 @@ function drawWelcomeInstructions() {
     
     const centerX = canvas.width * 0.35;
     let startY = canvas.height * 0.45;
-    const lineHeight = 40; // Increased to make room for animations
+    const lineHeight = 30;
     
     ctx.fillText('CONTROLS:', centerX, startY);
     startY += lineHeight;
     
-    // Ship size for illustrations
-    const shipRadius = 12;
-    const illustrationX = centerX - 120; // Position for illustrations
-    
     ctx.font = '12px "Press Start 2P"';
-    
-    // ROTATE control with animation
-    const rotateY = startY;
-    ctx.fillText('ROTATE: LEFT/RIGHT ARROWS', centerX, rotateY);
-    
-    // Draw rotating ship
-    ctx.save();
-    ctx.translate(illustrationX, rotateY);
-    
-    // Animate rotation
-    const rotationAngle = Math.sin(frameCount * 0.05) * Math.PI / 4; // Oscillate rotation
-    ctx.rotate(rotationAngle);
-    
-    // Draw ship
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1.5;
-    drawShipShape(0, 0, shipRadius);
-    ctx.stroke();
-    
-    // Draw rotation arrows
-    const arrowSize = 8;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.beginPath();
-    ctx.arc(0, 0, shipRadius + 6, 0, Math.PI * 0.8);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, shipRadius + 6, Math.PI, Math.PI * 1.8);
-    ctx.stroke();
-    
-    // Draw arrowheads
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    // Right arrow
-    ctx.beginPath();
-    ctx.moveTo(shipRadius + 10, -4);
-    ctx.lineTo(shipRadius + 6, 0);
-    ctx.lineTo(shipRadius + 10, 4);
-    ctx.fill();
-    // Left arrow
-    ctx.beginPath();
-    ctx.moveTo(-shipRadius - 10, -4);
-    ctx.lineTo(-shipRadius - 6, 0);
-    ctx.lineTo(-shipRadius - 10, 4);
-    ctx.fill();
-    
-    ctx.restore();
+    ctx.fillText('ROTATE: LEFT/RIGHT ARROWS', centerX, startY);
     startY += lineHeight;
-    
-    // THRUST control with animation
-    const thrustY = startY;
-    ctx.fillText('THRUST: UP ARROW', centerX, thrustY);
-    
-    // Draw ship with thrust
-    ctx.save();
-    ctx.translate(illustrationX, thrustY);
-    
-    // Draw ship
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1.5;
-    drawShipShape(0, 0, shipRadius);
-    ctx.stroke();
-    
-    // Animate thrust flame
-    const flameSize = 0.6 + Math.random() * 0.2; // Random flicker
-    const rearX = -shipRadius * 0.5;
-    const flameTipX = -shipRadius * (1 + flameSize);
-    
-    // Create gradient for flame
-    const gradient = ctx.createLinearGradient(rearX, 0, flameTipX, 0);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');   // White core
-    gradient.addColorStop(0.2, 'rgba(255, 200, 50, 0.8)');  // Yellow/orange
-    gradient.addColorStop(0.4, 'rgba(255, 100, 50, 0.6)');  // Orange/red
-    gradient.addColorStop(1, 'rgba(255, 50, 50, 0)');       // Fade to transparent
-    
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(rearX, -shipRadius * 0.3);
-    ctx.lineTo(flameTipX, 0);
-    ctx.lineTo(rearX, shipRadius * 0.3);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw thrust particles
-    const particleCount = 5;
-    for (let i = 0; i < particleCount; i++) {
-        const particleLife = (frameCount / 3 + i * 5) % 15;
-        if (particleLife < 15) {
-            const lifeRatio = 1 - (particleLife / 15);
-            const particleX = flameTipX - (10 * lifeRatio);
-            const particleY = (Math.random() - 0.5) * 6;
-            const particleSize = 1.5 * lifeRatio;
-            
-            ctx.fillStyle = `rgba(255, ${100 + Math.floor(lifeRatio * 155)}, 50, ${lifeRatio})`;
-            ctx.beginPath();
-            ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-    
-    // Draw up arrow indicator
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.beginPath();
-    ctx.moveTo(0, -shipRadius - 12);
-    ctx.lineTo(5, -shipRadius - 7);
-    ctx.lineTo(-5, -shipRadius - 7);
-    ctx.closePath();
-    ctx.fill();
-    
-    ctx.restore();
+    ctx.fillText('THRUST: UP ARROW', centerX, startY);
     startY += lineHeight;
-    
-    // FIRE control with animation
-    const fireY = startY;
-    ctx.fillText('FIRE: SPACE', centerX, fireY);
-    
-    // Draw ship with firing bullet
-    ctx.save();
-    ctx.translate(illustrationX, fireY);
-    
-    // Draw ship
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1.5;
-    drawShipShape(0, 0, shipRadius);
-    ctx.stroke();
-    
-    // Animate bullet firing
-    const bulletCycle = Math.floor(frameCount / 20) % 3; // 0, 1, 2 states
-    
-    if (bulletCycle === 0) {
-        // Ready to fire state
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.beginPath();
-        ctx.arc(shipRadius + 3, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-    } else {
-        // Firing animation
-        const bulletDist = (bulletCycle === 1) ? 10 : 20;
-        
-        // Draw bullet
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(shipRadius + bulletDist, 0, 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Draw bullet trail
-        const gradient = ctx.createLinearGradient(shipRadius, 0, shipRadius + bulletDist, 0);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(shipRadius, 0);
-        ctx.lineTo(shipRadius + bulletDist, 0);
-        ctx.stroke();
-    }
-    
-    // Draw space bar indicator
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-20, shipRadius + 7, 40, 10);
-    
-    ctx.restore();
+    ctx.fillText('FIRE: SPACE', centerX, startY);
     startY += lineHeight;
-    
-    // Regular text for remaining controls
     ctx.fillText('PAUSE: P', centerX, startY);
     startY += lineHeight;
     ctx.fillText('QUIT: ESC', centerX, startY);
@@ -928,52 +765,30 @@ function drawAsteroidScoreInfo() {
     
     ctx.font = '12px "Press Start 2P"';
     
-    // Use frameCount for rotation animation
-    const rotationSpeed = 0.01;
-    
     asteroidSizes.forEach((asteroid, index) => {
         const y = startY + index * lineHeight;
         
-        // Draw asteroid example with more realistic shape
+        // Draw asteroid example
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 1;
-        
-        // Save context for rotation
-        ctx.save();
-        ctx.translate(centerX - 50, y);
-        
-        // Apply continuous rotation based on frameCount
-        const rotation = frameCount * rotationSpeed * (index % 2 === 0 ? 1 : -1); // Alternate rotation direction
-        ctx.rotate(rotation);
-        
-        // Draw more realistic asteroid shape with more vertices
-        const radius = asteroid.size * 8;
-        const vertices = 10 + asteroid.size; // More vertices for larger asteroids
-        
         ctx.beginPath();
-        for (let i = 0; i < vertices; i++) {
-            const angle = i * Math.PI * 2 / vertices;
-            // Create more varied jagged edges for realism
-            const jag = 0.7 + Math.sin(i * 3.7) * 0.3 + Math.cos(i * 2.3) * 0.2;
-            const x = radius * jag * Math.cos(angle);
-            const y2 = radius * jag * Math.sin(angle);
+        
+        // Draw asteroid shape
+        const radius = asteroid.size * 8;
+        for (let i = 0; i < 8; i++) {
+            const angle = i * Math.PI * 2 / 8;
+            const jag = (i % 2 === 0) ? 1 : 0.8;
+            const x = centerX - 50 + radius * jag * Math.cos(angle);
+            const y2 = y + radius * jag * Math.sin(angle);
             
             if (i === 0) ctx.moveTo(x, y2);
             else ctx.lineTo(x, y2);
         }
         ctx.closePath();
-        
-        // Add texture with a subtle fill
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
-        ctx.fill();
         ctx.stroke();
-        
-        // Restore context after rotation
-        ctx.restore();
         
         // Draw score text
         ctx.textAlign = 'left';
-        ctx.fillStyle = 'white';
         ctx.fillText(`${asteroid.label}: ${asteroid.score}`, centerX - 20, y + 5);
         ctx.textAlign = 'center';
     });
@@ -1006,7 +821,6 @@ function drawAsteroidScoreInfo() {
     
     // Draw alien score text
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'white';
     ctx.fillText(`ALIEN: 1000`, centerX - 20, alienY + 5);
     ctx.textAlign = 'center';
 }
@@ -1084,10 +898,6 @@ function drawHighScores() {
     if (!highScoresFetched) {
         ctx.font = '16px "Press Start 2P"';
         ctx.fillText('Loading...', canvas.width * 0.5, canvas.height * 0.8);
-        
-        // Add copyright message
-        ctx.font = '10px "Press Start 2P"';
-        ctx.fillText('© James Puddicombe 2025', canvas.width * 0.5, canvas.height * 0.95);
         return;
     }
     
@@ -1095,10 +905,6 @@ function drawHighScores() {
     if (!highScores || highScores.length === 0) {
         ctx.font = '16px "Press Start 2P"';
         ctx.fillText('No high scores yet!', canvas.width * 0.5, canvas.height * 0.8);
-        
-        // Add copyright message
-        ctx.font = '10px "Press Start 2P"';
-        ctx.fillText('© James Puddicombe 2025', canvas.width * 0.5, canvas.height * 0.95);
         return;
     }
     
@@ -1128,10 +934,6 @@ function drawHighScores() {
             ctx.fillText(text, canvas.width * 0.5, startY + i * lineHeight);
         }
     }
-    
-    // Add copyright message
-    ctx.font = '10px "Press Start 2P"';
-    ctx.fillText('© James Puddicombe 2025', canvas.width * 0.5, canvas.height * 0.95);
 }
 
 /**
@@ -1264,6 +1066,13 @@ window.addEventListener('keydown', (e) => {
         return;
     }
     
+    // Test sound with 't' key
+    if (e.key === 't' || e.key === 'T') {
+        window.testSound();
+        addLogMessage('Testing sound...');
+        return;
+    }
+    
     // Toggle pause with 'p' key when game is active
     if ((e.key === 'p' || e.key === 'P') && gameStarted) {
         gamePaused = !gamePaused;
@@ -1386,8 +1195,10 @@ window.addEventListener('keyup', (e) => {
 // Load sound effects
 function loadSounds() {
     try {
+        console.log('Initializing audio system...');
         // Create audio context
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log('Audio context created, state:', audioContext.state);
         
         // Initialize sound objects
         soundFX = {
@@ -1409,8 +1220,11 @@ function loadSounds() {
         
         // If context is suspended (browser policy), add a click handler to resume it
         if (audioContext.state === 'suspended') {
+            console.log('Audio context is suspended, adding resume handlers');
             const resumeAudio = function() {
+                console.log('Attempting to resume audio context...');
                 audioContext.resume().then(() => {
+                    console.log('Audio context resumed successfully');
                     document.removeEventListener('click', resumeAudio);
                     document.removeEventListener('keydown', resumeAudio);
                 }).catch(err => {
@@ -1424,17 +1238,26 @@ function loadSounds() {
         
         // Load the AudioWorklet module
         const timestamp = new Date().getTime();
+        console.log('Loading AudioWorklet module...');
         audioContext.audioWorklet.addModule(`audioWorklet.js?v=${timestamp}`)
             .then(() => {
+                console.log('AudioWorklet module loaded successfully');
                 // Level start sound (triumphant rising tone)
                 levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
-                // ... existing code ...
+                // Use message port instead of parameters
+                levelStartNode.port.postMessage({ type: 'levelStart' });
+                levelStartNode.connect(audioContext.destination);
+                soundNodes.levelStart = levelStartNode;
+                
+                addLogMessage('Sound system initialized - Press T to test sound');
             })
             .catch(error => {
-                // ... existing code ...
+                console.error('Error loading AudioWorklet:', error);
+                addLogMessage('Error loading sound effects');
             });
     } catch (e) {
-        // ... existing code ...
+        console.error('Audio initialization error:', e);
+        addLogMessage('Error initializing audio system');
     }
 }
 
@@ -1444,6 +1267,7 @@ let thrustOscillator = null;
 
 // Play or stop the thrust sound
 function playThrustSound(play) {
+    console.log(`playThrustSound called with play=${play}`);
     if (!audioContext) {
         console.error('Audio context not available for thrust sound');
         return;
@@ -1452,23 +1276,27 @@ function playThrustSound(play) {
     try {
         if (play) {
             if (thrustNode) {
+                console.log('Thrust sound already playing, skipping');
                 return; // Already playing
             }
             
+            console.log('Creating AudioWorkletNode for thrust sound');
             // Create AudioWorklet node for thrust sound
             thrustNode = new AudioWorkletNode(audioContext, 'sound-generator');
             
             // Configure for thrust sound
-            const message = {
+            const message = { 
                 type: 'thrust',
                 start: true,
                 duration: 60, // Long duration
                 amplitude: 0.25 // Reduced amplitude for quieter thrust
             };
+            console.log('Sending message to thrust node:', message);
             thrustNode.port.postMessage(message);
             
             // Connect to output
             thrustNode.connect(audioContext.destination);
+            console.log('Thrust node connected to destination');
             
             // Store reference
             if (!soundNodes) {
@@ -1478,18 +1306,62 @@ function playThrustSound(play) {
         } else {
             // Stop thrust sound
             if (thrustNode) {
+                console.log('Stopping thrust sound');
                 thrustNode.port.postMessage({ stop: true });
                 thrustNode.disconnect();
                 thrustNode = null;
+            } else {
+                console.log('No thrust node to stop');
             }
         }
     } catch (e) {
-        // ... existing code ...
+        console.error('Error with thrust sound:', e);
+        // Fallback to original implementation
+        try {
+            if (play) {
+                if (thrustOscillator) return; // Already playing
+                
+                // Create noise for thrust sound
+                thrustOscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+                
+                // Set up noise generator
+                thrustOscillator.type = 'sawtooth';
+                thrustOscillator.frequency.setValueAtTime(100, audioContext.currentTime);
+                
+                // Set up filter for noise shaping
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(400, audioContext.currentTime);
+                filter.Q.setValueAtTime(1, audioContext.currentTime);
+                
+                // Set volume - reduced for quieter thrust
+                gainNode.gain.setValueAtTime(0.08, audioContext.currentTime); // Reduced from 0.15
+                
+                // Connect nodes
+                thrustOscillator.connect(filter);
+                filter.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Start sound
+                thrustOscillator.start();
+            } else {
+                // Stop thrust sound
+                if (thrustOscillator) {
+                    thrustOscillator.stop();
+                    thrustOscillator.disconnect();
+                    thrustOscillator = null;
+                }
+            }
+        } catch (e) {
+            addLogMessage('Error with thrust sound');
+        }
     }
 }
 
 // Play a sound effect
 function playSound(soundType) {
+    console.log(`Attempting to play sound: ${soundType}`);
     if (!audioContext) {
         console.error('Audio context not available');
         addLogMessage('Audio context not available');
@@ -1497,11 +1369,12 @@ function playSound(soundType) {
     }
     
     try {
+        console.log(`Creating AudioWorkletNode for sound: ${soundType}`);
         // Create a new AudioWorkletNode for each sound
         const soundNode = new AudioWorkletNode(audioContext, 'sound-generator');
         
         // Configure sound based on type
-        const message = {
+        const message = { 
             type: soundType,
             start: true,
             duration: 1.0  // Default duration
@@ -1514,10 +1387,12 @@ function playSound(soundType) {
             message.amplitude = 0.6; // Medium amplitude for medium explosions
         }
         
+        console.log(`Sending message to sound node:`, message);
         soundNode.port.postMessage(message);
         
         // Connect to output and start
         soundNode.connect(audioContext.destination);
+        console.log(`Sound node connected to destination`);
         
         // Store reference to stop later if needed
         if (!soundNodes) {
@@ -1528,15 +1403,200 @@ function playSound(soundType) {
     } catch (e) {
         console.error('Error playing sound:', e);
         // Fallback to original implementation
+        console.log('Falling back to original implementation');
         try {
-            // ... existing code ...
-        } catch (innerError) {
-            // ... existing code ...
+            // Create oscillator and gain node
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            // Configure sound based on type
+            switch (soundType) {
+                case 'fire':
+                    // Laser-like sound
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(110, audioContext.currentTime + 0.15);
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                    
+                    // Connect and play
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.15);
+                    break;
+                    
+                case 'bangLarge':
+                    // Low explosion sound with deep rumble for large asteroids
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(40, audioContext.currentTime); // Reduced from 50 to 40 for deeper rumble
+                    oscillator.frequency.exponentialRampToValueAtTime(15, audioContext.currentTime + 0.9); // Longer duration
+                    
+                    // Create noise for rumble effect
+                    const rumbleOsc = audioContext.createOscillator();
+                    rumbleOsc.type = 'sawtooth';
+                    rumbleOsc.frequency.setValueAtTime(25, audioContext.currentTime); // Lower frequency for more bass
+                    
+                    // Add sub-bass oscillator for more impact
+                    const subBassOsc = audioContext.createOscillator();
+                    subBassOsc.type = 'sine';
+                    subBassOsc.frequency.setValueAtTime(25, audioContext.currentTime);
+                    
+                    const rumbleGain = audioContext.createGain();
+                    rumbleGain.gain.setValueAtTime(0.3, audioContext.currentTime); // Increased from 0.2
+                    rumbleGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.9);
+                    
+                    const subBassGain = audioContext.createGain();
+                    subBassGain.gain.setValueAtTime(0.4, audioContext.currentTime);
+                    subBassGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.9);
+                    
+                    gainNode.gain.setValueAtTime(0.7, audioContext.currentTime); // Increased from 0.5
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.9);
+                    
+                    // Connect and play
+                    oscillator.connect(gainNode);
+                    rumbleOsc.connect(rumbleGain);
+                    subBassOsc.connect(subBassGain);
+                    rumbleGain.connect(audioContext.destination);
+                    subBassGain.connect(audioContext.destination);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    rumbleOsc.start();
+                    subBassOsc.start();
+                    oscillator.stop(audioContext.currentTime + 0.9);
+                    rumbleOsc.stop(audioContext.currentTime + 0.9);
+                    subBassOsc.stop(audioContext.currentTime + 0.9);
+                    break;
+                    
+                case 'bangMedium':
+                    // Medium explosion sound - similar to large but lighter
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(80, audioContext.currentTime); // Between large (40) and small (300)
+                    oscillator.frequency.exponentialRampToValueAtTime(40, audioContext.currentTime + 0.6); // Medium duration
+                    
+                    // Create noise for medium rumble effect
+                    const mediumRumbleOsc = audioContext.createOscillator();
+                    mediumRumbleOsc.type = 'sawtooth';
+                    mediumRumbleOsc.frequency.setValueAtTime(60, audioContext.currentTime); // Higher than large asteroid
+                    
+                    const mediumRumbleGain = audioContext.createGain();
+                    mediumRumbleGain.gain.setValueAtTime(0.25, audioContext.currentTime); // Less than large asteroid
+                    mediumRumbleGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+                    
+                    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime); // Less than large asteroid
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+                    
+                    // Connect and play
+                    oscillator.connect(gainNode);
+                    mediumRumbleOsc.connect(mediumRumbleGain);
+                    mediumRumbleGain.connect(audioContext.destination);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    mediumRumbleOsc.start();
+                    oscillator.stop(audioContext.currentTime + 0.6);
+                    mediumRumbleOsc.stop(audioContext.currentTime + 0.6);
+                    break;
+                    
+                case 'bangSmall':
+                    // Small explosion sound
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(180, audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(90, audioContext.currentTime + 0.2);
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                    
+                    // Connect and play
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + 0.2);
+                    break;
+                    
+                case 'explode':
+                    // Ship explosion - more complex sound
+                    const noise = audioContext.createOscillator();
+                    const noiseGain = audioContext.createGain();
+                    const filter = audioContext.createBiquadFilter();
+                    
+                    noise.type = 'sawtooth';
+                    noise.frequency.setValueAtTime(100, audioContext.currentTime);
+                    
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(1000, audioContext.currentTime);
+                    filter.frequency.exponentialRampToValueAtTime(20, audioContext.currentTime + 0.8);
+                    
+                    noiseGain.gain.setValueAtTime(0.6, audioContext.currentTime);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+                    
+                    noise.connect(filter);
+                    filter.connect(noiseGain);
+                    noiseGain.connect(audioContext.destination);
+                    
+                    noise.start();
+                    noise.stop(audioContext.currentTime + 0.8);
+                    break;
+                    
+                default:
+                    addLogMessage('Unknown sound type: ' + soundType);
+                    return;
+            }
+        } catch (e) {
+            addLogMessage('Error playing sound');
         }
     }
 }
 
-// ... existing code ...
+// Test sound function
+window.testSound = function() {
+    if (!audioContext) {
+        try {
+            // Try to initialize audio context if it doesn't exist
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            addLogMessage('Could not create audio context');
+            return;
+        }
+    }
+    
+    try {
+        // Resume context if suspended
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().then(() => {
+                playTestSound();
+            });
+        } else {
+            playTestSound();
+        }
+    } catch (e) {
+        addLogMessage('Error testing sound');
+    }
+};
+
+function playTestSound() {
+    try {
+        // Create a simple beep sound
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // 440 Hz = A4
+        
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 1);
+        
+        addLogMessage('Test sound playing - if you hear nothing, check browser audio permissions');
+    } catch (e) {
+        addLogMessage('Error playing test sound');
+    }
+}
 
 // Initialize game objects - updated to reset score submission time
 function initGame() {
