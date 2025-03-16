@@ -158,4 +158,72 @@ export class Renderer {
         this.ctx.font = '14px PressStart2P';
         this.ctx.fillText('PRESS P TO RESUME', this.canvas.width / 2, this.canvas.height / 2 + 40);
     }
+
+    drawReleaseNotes(releases, scrollOffset = 0) {
+        // Semi-transparent background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Title
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '24px PressStart2P';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('RELEASE NOTES', this.canvas.width / 2, 50);
+
+        // Draw close instruction
+        this.ctx.font = '12px PressStart2P';
+        this.ctx.fillText('PRESS N TO CLOSE', this.canvas.width / 2, 80);
+
+        // Calculate visible area
+        const startY = 120 - scrollOffset;
+        const visibleHeight = this.canvas.height - 140;
+        let currentY = startY;
+
+        // Draw releases
+        releases.forEach(release => {
+            // Only draw if in visible area
+            if (currentY > 100 && currentY < this.canvas.height - 20) {
+                // Draw version title
+                this.ctx.font = '16px PressStart2P';
+                this.ctx.fillStyle = '#FFD700'; // Gold color for version
+                this.ctx.fillText(release.title, this.canvas.width / 2, currentY);
+
+                // Draw changes
+                this.ctx.font = '12px PressStart2P';
+                this.ctx.fillStyle = 'white';
+                const changes = release.content.split('\\n');
+                changes.forEach((change, index) => {
+                    currentY += 25;
+                    if (currentY > 100 && currentY < this.canvas.height - 20) {
+                        this.ctx.fillText(change, this.canvas.width / 2, currentY);
+                    }
+                });
+            }
+            currentY += 40; // Space between versions
+        });
+
+        // Draw scroll indicators if needed
+        if (scrollOffset > 0) {
+            this.drawScrollIndicator('up', 20);
+        }
+        if (currentY > this.canvas.height) {
+            this.drawScrollIndicator('down', this.canvas.height - 20);
+        }
+    }
+
+    drawScrollIndicator(direction, y) {
+        this.ctx.fillStyle = 'white';
+        this.ctx.beginPath();
+        if (direction === 'up') {
+            this.ctx.moveTo(this.canvas.width / 2 - 10, y + 10);
+            this.ctx.lineTo(this.canvas.width / 2, y);
+            this.ctx.lineTo(this.canvas.width / 2 + 10, y + 10);
+        } else {
+            this.ctx.moveTo(this.canvas.width / 2 - 10, y - 10);
+            this.ctx.lineTo(this.canvas.width / 2, y);
+            this.ctx.lineTo(this.canvas.width / 2 + 10, y - 10);
+        }
+        this.ctx.closePath();
+        this.ctx.fill();
+    }
 } 

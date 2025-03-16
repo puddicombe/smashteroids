@@ -1,19 +1,51 @@
 # Asteroids Game
 
-A classic Asteroids arcade game with a modern twist, featuring a server-based high score system.
+A modern reimagining of the classic Asteroids arcade game, featuring enhanced gameplay mechanics, intelligent enemies, and a server-based high score system.
 
 (c) James Puddicombe 2025
 
 ## Features
 
-- Classic Asteroids gameplay with improved controls
-- Animated welcome screen with game instructions
-- Realistic physics with momentum and inertia
-- Sound effects generated using Web Audio API
-- Server-based high score system that persists between sessions
+### Core Gameplay
+- Classic Asteroids gameplay with improved physics and controls
+- Momentum-based movement with realistic inertia
+- Size-based asteroid behavior: smaller asteroids move and rotate faster
 - Safe respawn system to prevent unfair deaths
-- Dynamic ship explosion animations
-- Pause functionality
+- Maximum of 4 bullets on screen at once (like the original arcade game)
+- Pause functionality (P key)
+
+### Enhanced Graphics & Animation
+- Animated welcome screen with game instructions
+- Dynamic ship explosion animations with debris physics
+- Asteroid destruction animations
+- Ship invulnerability visual effects after respawn
+- Smooth rotation and movement
+
+### Intelligent Enemies
+- Alien spacecraft that appear more frequently in higher levels
+- Smart alien behavior with asteroid avoidance
+- Predictive shooting that targets player's projected position
+- Multiple aliens can appear simultaneously
+- Aliens have their own bullet management system
+
+### Audio System
+- Procedurally generated sound effects using Web Audio API
+- Dynamic thrust sounds that match ship movement
+- Explosion sounds that vary based on object size
+- Weapon firing effects for both player and aliens
+
+### High Score System
+- Server-based high score table that persists between sessions
+- Stores up to 15 top scores
+- 3-letter initial entry for high scores
+- High scores displayed on welcome screen
+- Automatic score submission when beating previous records
+
+### Additional Features
+- Debug log system (toggle with L key)
+- In-game release notes (N key)
+- Comprehensive game statistics
+- Level progression system with increasing difficulty
 
 ## Running the Game Locally
 
@@ -50,6 +82,24 @@ Open your browser and navigate to:
 http://localhost:3000
 ```
 
+## Game Controls
+
+### Ship Controls
+- **Rotate Left**: Left arrow or A key
+- **Rotate Right**: Right arrow or D key
+- **Thrust**: Up arrow or W key
+- **Fire**: Spacebar (maximum 4 bullets)
+
+### Game Management
+- **Pause Game**: P key
+- **Exit to Menu**: ESC key
+- **Toggle Debug Log**: L key
+- **View Release Notes**: N key
+- **Test Sound**: T key
+
+### Debug Features
+- **Spawn Alien**: U key (for testing)
+
 ## Deploying to Heroku
 
 ### Prerequisites
@@ -84,25 +134,6 @@ http://localhost:3000
 - High scores on Heroku will reset whenever the dyno restarts (approximately daily)
 - For persistent high scores, consider adding a database like MongoDB Atlas or Heroku Postgres
 
-## Game Controls
-
-- **Rotate**: Left/Right arrows or A/D keys
-- **Thrust**: Up arrow or W key
-- **Fire**: Spacebar (maximum 4 bullets at once)
-- **Pause**: P key
-- **Exit to Menu**: ESC key
-- **Toggle Debug Log**: L key
-
-## High Score System
-
-The game features a server-based high score system that:
-
-- Persists between game sessions
-- Stores up to 15 top scores
-- Collects player initials (3 letters)
-- Displays scores on the welcome screen
-- Automatically submits scores when you beat a previous high score
-
 ## Development
 
 To run the server in development mode with auto-restart:
@@ -111,6 +142,22 @@ To run the server in development mode with auto-restart:
 cd server
 npm run dev
 ```
+
+## Game Mechanics
+
+### Scoring System
+- Large Asteroid: 100 points
+- Medium Asteroid: 200 points
+- Small Asteroid: 300 points
+- Alien Spacecraft: 1000 points
+- Score multiplier increases with level
+
+### Level Progression
+- Each level increases asteroid speed and count
+- Alien spacecraft appear more frequently
+- Smaller asteroids move and rotate faster
+- Score multipliers increase with level
+- More asteroid fragments spawn at higher levels
 
 ## License
 

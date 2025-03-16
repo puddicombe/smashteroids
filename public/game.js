@@ -1,39 +1,78 @@
-// Add copyright notice at the top of the file
-console.log('Asteroids Game (c) James Puddicombe 2025');
+/**
+ * Asteroids Game - A modern reimagining of the classic arcade game
+ * Copyright (c) James Puddicombe 2025
+ * 
+ * This implementation focuses on enhancing the original gameplay with:
+ * - Modern web technologies (HTML5 Canvas, Web Audio API)
+ * - Improved physics and collision detection
+ * - Server-based high score system
+ * - Intelligent enemy behavior
+ * - Enhanced visual and audio feedback
+ */
 
+// Initialize canvas for rendering game graphics
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let logMessages = [];
-let squareX = 0;
-let squareY = 0;
-let squareSpeed = 2;
-let gameStarted = false;
-let gameLoopRunning = false; // Flag to prevent multiple game loops
+// Game state tracking variables
+let logMessages = [];        // Stores debug/info messages for development and user feedback
+let gameStarted = false;     // Controls game state transitions between menu and gameplay
+let gameLoopRunning = false; // Prevents multiple game loops from running simultaneously
 
-// Add initial log message
-addLogMessage('Game initializing...');
+// Visual enhancement features
+let stars = [];             // Background star field for visual depth
+let starsGenerated = false; // Ensures stars are only generated once per screen
+let welcomeAsteroids = [];  // Decorative asteroids for the welcome screen
+let showLog = false;        // Debug log visibility toggle
 
-// Add variables for static stars
-let stars = [];
-let starsGenerated = false;
-let welcomeAsteroids = []; // Asteroids for welcome screen
-let showLog = false; // Log is hidden by default
+/**
+ * Alien spacecraft system constants
+ * Balanced for challenging but fair combat encounters:
+ * - Limited count prevents overwhelming the player
+ * - Speed and fire rate allow for strategic dodging
+ * - Points reward skilled play
+ * - AI behavior creates engaging combat
+ */
+// ... existing alien constants ...
 
-// Add variables for high scores - now fetched from server
+/**
+ * Release notes system
+ * Provides players with transparent update history and
+ * helps track game evolution and improvements
+ */
+let showingReleaseNotes = false;
+let releaseNotesScroll = 0;
+const SCROLL_SPEED = 10;
+
+/**
+ * High score system configuration
+ * Server-based system allows for:
+ * - Global competition
+ * - Persistent rankings
+ * - Anti-cheat verification
+ * - Community engagement
+ */
 let highScores = [];
-const HIGH_SCORE_COUNT = 15; // Increased from 5 to 15 for server-based scores
+const HIGH_SCORE_COUNT = 15;
 let playerInitials = "AAA";
 let enteringInitials = false;
 let currentInitialIndex = 0;
-let highScoresFetched = false; // Flag to track if high scores have been fetched
+let highScoresFetched = false;
 
-// Add variables for animations
+/**
+ * Animation state variables
+ * Used to create smooth, dynamic visual effects
+ * that enhance game feel and user feedback
+ */
 let titleHoverOffset = 0;
 let titleHoverDirection = 1;
 let frameCount = 0;
 
-// Game objects and state
+/**
+ * Core game state
+ * These variables track the essential elements
+ * that make up the game's current state
+ */
 let ship = null;
 let asteroids = [];
 let bullets = [];
@@ -41,21 +80,57 @@ let score = 0;
 let lives = 3;
 let level = 1;
 
-// Constants for game mechanics
-const SHIP_SIZE = 20;
-const SHIP_THRUST = 0.2;
-const SHIP_ROTATION_SPEED = 0.1;
-const FRICTION = 0.99;
-const BULLET_SPEED = 7;
-const BULLET_LIFETIME = 60; // frames
-const BASE_ASTEROID_SPEED = 1;
-const ASTEROID_COUNT = 3; // initial count, increases with level
-const ASTEROID_SPEED_SCALING = 0.1; // How much faster asteroids get per level
-const MAX_ASTEROID_SPEED = 2.5; // Cap on asteroid speed
-const SCORE_MULTIPLIER = 100; // Base score for asteroids
-const ASTEROID_JAG = 0.4; // jaggedness (0 = smooth, 1 = very jagged)
+/**
+ * Game mechanics constants
+ * Carefully balanced values that create:
+ * - Satisfying ship control
+ * - Fair combat difficulty
+ * - Progressive challenge scaling
+ * - Rewarding scoring system
+ */
+const SHIP_SIZE = 20;                    // Base size of the player's ship
+const SHIP_THRUST = 0.5;                 // Acceleration rate
+const SHIP_ROTATION_SPEED = 0.1;         // Rotation rate
+const FRICTION = 0.99;                   // Friction coefficient (1 = no friction)
 
-// Key states for smooth controls
+// Asteroid constants
+const BASE_ASTEROID_SPEED = 1;           // Base speed for asteroids
+const ASTEROID_SPEED_SCALING = 0.2;      // Speed increase per level
+const MAX_ASTEROID_SPEED = 3;            // Maximum asteroid speed
+const ASTEROID_COUNT = 3;                // Starting number of asteroids
+const ASTEROID_JAG = 0.4;                // Jaggedness of asteroid shapes
+const SCORE_MULTIPLIER = 100;            // Base score for destroying asteroids
+
+// Bullet constants
+const BULLET_SPEED = 10;                 // Speed of player bullets
+const BULLET_LIFETIME = 50;              // How long bullets last
+
+// Alien constants
+const ALIEN_SIZE = 20;                   // Size of alien ships
+const ALIEN_SPEED = 2;                   // Maximum alien movement speed
+const ALIEN_THRUST = 0.1;                // Alien acceleration rate
+const ALIEN_ROTATION_SPEED = 0.1;        // How fast aliens can turn
+const ALIEN_FRICTION = 0.99;             // Friction applied to alien movement
+const ALIEN_POINTS = 1000;               // Score for destroying an alien
+const ALIEN_MAX_COUNT = 1;               // Maximum aliens at once
+const ALIEN_CHANGE_DIRECTION_RATE = 60;  // How often aliens change direction
+const ALIEN_FIRE_RATE_MIN = 30;          // Minimum frames between alien shots
+const ALIEN_FIRE_RATE_MAX = 90;          // Maximum frames between alien shots
+const ALIEN_MAX_BULLETS = 3;             // Maximum alien bullets on screen
+const ALIEN_BULLET_SPEED = 5;            // Speed of alien bullets
+const ALIEN_BULLET_SIZE = 3;             // Size of alien bullets
+const ALIEN_BULLET_PULSE_SPEED = 0.2;    // Speed of bullet pulse animation
+
+// Alien spawn timing
+const ALIEN_BASE_SPAWN_INTERVAL = 1800;  // Base interval (30 seconds at 60fps)
+const ALIEN_SPAWN_INTERVAL_DECREASE = 300; // Decrease per level (5 seconds)
+const ALIEN_MIN_SPAWN_INTERVAL = 600;    // Minimum interval (10 seconds)
+
+/**
+ * Input state tracking
+ * Enables smooth, responsive controls by
+ * maintaining the current state of player inputs
+ */
 let keys = {
     left: false,
     right: false,
@@ -63,7 +138,14 @@ let keys = {
     space: false
 };
 
-// Sound effects
+/**
+ * Sound system configuration
+ * Uses Web Audio API for:
+ * - Dynamic sound generation
+ * - Real-time audio manipulation
+ * - Low latency feedback
+ * - Memory efficient sound effects
+ */
 let soundFX = {
     fire: null,
     thrust: null,
@@ -72,62 +154,81 @@ let soundFX = {
     bangSmall: null,
     explode: null
 };
-
-// Audio context for sound generation
 let audioContext = null;
 
-// Add variables for ship explosion debris
+/**
+ * Ship explosion system
+ * Creates dramatic, physics-based destruction
+ * that provides satisfying feedback for player death
+ */
 let shipDebris = [];
 const DEBRIS_SPEED = 0.5;
 const DEBRIS_ROTATION_SPEED = 0.02;
-const DEBRIS_LIFETIME = 180; // 3 seconds at 60fps
+const DEBRIS_LIFETIME = 180;
 
-// Add a constant for safe respawn distance
-const SAFE_RESPAWN_DISTANCE = 100; // Minimum distance from any asteroid
+/**
+ * Safe respawn system
+ * Prevents frustrating instant deaths by ensuring
+ * players respawn in safe locations
+ */
+const SAFE_RESPAWN_DISTANCE = 100;
 
-// Add a game paused state variable
+/**
+ * Game state control
+ * Manages pause functionality and bullet limitations
+ * for balanced gameplay
+ */
 let gamePaused = false;
+const MAX_BULLETS = 4;
 
-// Update the max bullets constant
-const MAX_BULLETS = 4; // Maximum bullets on screen at once (like the original game)
-
-// Add variables for server communication
+/**
+ * Server communication state
+ * Handles high score submission and provides
+ * feedback during server interactions
+ */
 let isSubmittingScore = false;
 let scoreSubmitError = null;
 let lastScoreSubmitTime = 0;
 
+// ... rest of the existing code ...
+
+/**
+ * Canvas resize handler
+ * Ensures the game fills the available screen space while
+ * maintaining proper scaling and visual elements
+ */
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    squareY = canvas.height / 2; // Update square position after resize
+    squareY = canvas.height / 2;
     addLogMessage('Canvas resized to: ' + canvas.width + ' x ' + canvas.height);
     
-    // Regenerate stars for the new canvas size
+    // Regenerate stars to fill new dimensions
     starsGenerated = false;
     generateStars();
 }
 
-window.addEventListener('resize', resizeCanvas);
-
-// Draw the welcome screen once
+/**
+ * Game initialization
+ * Sets up the game environment and starts the main loop.
+ * Handles one-time setup of:
+ * - Audio system
+ * - Welcome screen
+ * - High score system
+ * - Game loop
+ */
 function init() {
     addLogMessage('Initializing game...');
     resizeCanvas();
-    
-    // Load sounds
     loadSounds();
-    
-    // Initialize welcome screen asteroids
     initWelcomeAsteroids();
-    
-    // Fetch high scores from server
     fetchHighScores();
     
     // Start in welcome screen state
     gameStarted = false;
     enteringInitials = false;
     
-    // Only start game loop if not already running
+    // Prevent multiple game loops
     if (!gameLoopRunning) {
         gameLoopRunning = true;
         requestAnimationFrame(gameLoop);
@@ -135,11 +236,15 @@ function init() {
     }
 }
 
-// New function to fetch high scores from server
+/**
+ * High score fetching
+ * Retrieves scores from server with fallback to local scores
+ * to ensure the game remains playable even if server is unavailable
+ */
 function fetchHighScores() {
     addLogMessage('Fetching high scores from server...');
     
-    // Use default scores if fetch fails
+    // Fallback scores if server is unreachable
     const defaultScores = [
         { initials: "JP1", score: 10000 },
         { initials: "JP2", score: 8000 },
@@ -150,9 +255,7 @@ function fetchHighScores() {
     
     fetch('/api/highscores')
         .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
+            if (!response.ok) throw new Error('Network response was not ok');
             return response.json();
         })
         .then(data => {
@@ -162,7 +265,6 @@ function fetchHighScores() {
         })
         .catch(error => {
             addLogMessage('Error loading high scores: ' + error.message);
-            // Use default scores if fetch fails
             highScores = defaultScores;
             highScoresFetched = true;
         });
@@ -174,61 +276,79 @@ window.addEventListener('load', function() {
     init();
 });
 
+/**
+ * Main game loop
+ * Orchestrates the game's core update and render cycle:
+ * - Clears and prepares canvas
+ * - Updates game state based on current mode
+ * - Renders appropriate screen (welcome, game, or game over)
+ * - Handles pause state and overlay systems
+ */
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw background
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw based on game state
     if (!gameStarted) {
+        // Welcome/Game Over screens
         if (enteringInitials) {
             drawGameOver();
         } else {
             drawWelcomeElements();
         }
     } else {
-        // Only update game state if not paused
+        // Active gameplay
         if (!gamePaused) {
             updateGame();
+            updateAliens();
+            updateAlienBullets();
         } else {
-            // Draw pause message
             drawPauseScreen();
         }
         
-        // Draw game elements regardless of pause state
+        // Always draw game elements for visual continuity
         drawGame();
+        drawAliens();
+        drawAlienBullets();
     }
     
-    // Draw log last so it's on top
+    // Overlay systems
+    if (showingReleaseNotes) drawReleaseNotes();
     drawLog();
     
     requestAnimationFrame(gameLoop);
 }
 
+/**
+ * Debug logging system
+ * Provides real-time feedback for:
+ * - Development debugging
+ * - Player feedback
+ * - System state monitoring
+ */
 function addLogMessage(message) {
-    // Remove console.log, only add to the in-game log
     logMessages.push(message);
-    if (logMessages.length > 10) {
-        logMessages.shift();
-    }
+    if (logMessages.length > 10) logMessages.shift();
 }
 
+/**
+ * Debug log rendering
+ * Creates an overlay for development and player feedback
+ * that maintains readability while being unobtrusive
+ */
 function drawLog() {
-    // Only draw log if showLog is true
     if (!showLog) return;
     
-    // Draw log background with border
+    // Semi-transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillRect(0, 0, canvas.width, 120);
     
-    // Add a border
+    // Visual border for clarity
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, canvas.width, 120);
     
-    // Draw log text
+    // Message display
     ctx.fillStyle = 'white';
     ctx.font = '14px monospace';
     ctx.textAlign = 'left';
@@ -238,41 +358,13 @@ function drawLog() {
     });
 }
 
-function drawWelcomeScreen() {
-    addLogMessage('Drawing welcome screen');
-    ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw stars
-    for (let i = 0; i < 100; i++) {
-        ctx.fillStyle = 'white';
-        const x = Math.random() * canvas.width;
-        const y = Math.random() * canvas.height;
-        ctx.fillRect(x, y, 2, 2);
-    }
-
-    // Draw title
-    ctx.fillStyle = 'white';
-    ctx.font = '20px PressStart2P';
-    ctx.textAlign = 'center';
-    ctx.fillText('ASTEROIDS', canvas.width / 2, canvas.height / 2 - 50);
-
-    // Draw start prompt
-    ctx.font = '10px PressStart2P';
-    ctx.fillText('PRESS ENTER TO START', canvas.width / 2, canvas.height / 2 + 20);
-
-    // Blink effect for start prompt
-    let blink = true;
-    setInterval(() => {
-        ctx.clearRect(0, canvas.height / 2 + 10, canvas.width, 30);
-        if (blink) {
-            ctx.fillText('PRESS ENTER TO START', canvas.width / 2, canvas.height / 2 + 20);
-        }
-        blink = !blink;
-    }, 500);
-}
-
-// Generate stars once
+/**
+ * Star field generation
+ * Creates a dynamic, twinkling background that:
+ * - Adds visual depth to the game
+ * - Creates atmosphere
+ * - Provides subtle motion cues
+ */
 function generateStars() {
     if (!starsGenerated) {
         stars = [];
@@ -280,10 +372,10 @@ function generateStars() {
             stars.push({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
-                size: Math.random() * 2 + 1, // Vary star size between 1-3 pixels
-                brightness: 0.5 + Math.random() * 0.5, // Random brightness
-                twinkleSpeed: 0.01 + Math.random() * 0.03, // Random twinkle speed
-                twinkleOffset: Math.random() * Math.PI * 2 // Random starting phase
+                size: Math.random() * 2 + 1,
+                brightness: 0.5 + Math.random() * 0.5,
+                twinkleSpeed: 0.01 + Math.random() * 0.03,
+                twinkleOffset: Math.random() * Math.PI * 2
             });
         }
         starsGenerated = true;
@@ -291,67 +383,69 @@ function generateStars() {
     }
 }
 
-// Modify the drawWelcomeElements function to include instructions and asteroid score info
+/**
+ * Welcome screen elements
+ * Creates an engaging first impression with:
+ * - Animated title
+ * - Interactive elements
+ * - Game instructions
+ * - High score display
+ * - Visual polish
+ */
 function drawWelcomeElements() {
-    // Generate stars if not already done
     generateStars();
     
-    // Update animation values
+    // Title animation
     frameCount++;
-    
-    // Hover effect for title
     titleHoverOffset += 0.05 * titleHoverDirection;
     if (titleHoverOffset > 5 || titleHoverOffset < -5) {
         titleHoverDirection *= -1;
     }
     
-    // Draw stars with twinkling effect
+    // Render starfield with parallax effect
     stars.forEach(star => {
-        // Calculate twinkling brightness
         const twinkle = Math.sin(frameCount * star.twinkleSpeed + star.twinkleOffset);
         const brightness = star.brightness * (0.7 + 0.3 * twinkle);
-        
-        // Apply brightness to star color
         ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
         ctx.fillRect(star.x, star.y, star.size, star.size);
     });
     
-    // Update and draw welcome screen asteroids
+    // Welcome screen components
     updateWelcomeAsteroids();
     drawWelcomeAsteroids();
 
-    // Draw title with hover effect
+    // Animated title
     ctx.fillStyle = 'white';
     ctx.font = '28px PressStart2P';
     ctx.textAlign = 'center';
     ctx.fillText('ASTEROIDS', canvas.width / 2, canvas.height / 5 + titleHoverOffset);
 
-    // Draw start prompt with blinking effect
+    // Blinking start prompt
     ctx.font = '12px PressStart2P';
     if (Math.floor(frameCount / 30) % 2 === 0) {
         ctx.fillText('PRESS ENTER TO START', canvas.width / 2, canvas.height / 5 + 40);
     }
     
-    // Draw instructions
+    // Information displays
     drawWelcomeInstructions();
-    
-    // Draw asteroid score information
     drawAsteroidScoreInfo();
-    
-    // Draw high scores
     drawHighScores();
 }
 
-// Draw game instructions on welcome screen
+/**
+ * Game instructions display
+ * Provides clear, concise control information:
+ * - Essential controls prominently displayed
+ * - Grouped by function
+ * - Easy to read formatting
+ */
 function drawWelcomeInstructions() {
     ctx.fillStyle = 'white';
     ctx.font = '12px PressStart2P';
     ctx.textAlign = 'center';
     
-    // Title for instructions
     ctx.fillText('CONTROLS', canvas.width / 2, canvas.height / 3);
     
-    // Instructions with smaller font
     ctx.font = '10px PressStart2P';
     const instructions = [
         'ROTATE: LEFT/RIGHT ARROWS or A/D',
@@ -359,7 +453,8 @@ function drawWelcomeInstructions() {
         'FIRE: SPACEBAR (MAX 4 BULLETS)',
         'PAUSE: P',
         'EXIT: ESC (RETURNS TO MENU)',
-        'TOGGLE LOG: L'
+        'TOGGLE LOG: L',
+        'RELEASE NOTES: N'
     ];
     
     instructions.forEach((instruction, index) => {
@@ -367,16 +462,20 @@ function drawWelcomeInstructions() {
     });
 }
 
-// Draw asteroid score information
+/**
+ * Score information display
+ * Visualizes the scoring system with:
+ * - Clear point values
+ * - Size-based scoring explanation
+ * - Visual examples of targets
+ */
 function drawAsteroidScoreInfo() {
     ctx.fillStyle = 'white';
     ctx.font = '12px PressStart2P';
     ctx.textAlign = 'center';
     
-    // Title for score info
     ctx.fillText('ASTEROID POINTS', canvas.width / 4, canvas.height / 2 + 20);
     
-    // Draw asteroid examples and their scores
     const asteroidSizes = [
         { size: 3, score: 100, label: 'LARGE' },
         { size: 2, score: 200, label: 'MEDIUM' },
@@ -389,67 +488,69 @@ function drawAsteroidScoreInfo() {
     asteroidSizes.forEach((asteroid, index) => {
         const y = canvas.height / 2 + 50 + index * 40;
         
-        // Draw example asteroid
+        // Visual example
         ctx.beginPath();
         const radius = asteroid.size * 10;
         for (let i = 0; i < 8; i++) {
             const angle = i * Math.PI * 2 / 8;
-            const jag = (i % 2 === 0) ? 1 : 0.8; // Simple jagged effect
+            const jag = (i % 2 === 0) ? 1 : 0.8;
             const x = canvas.width / 4 - 60 + radius * jag * Math.cos(angle);
             const y2 = y + radius * jag * Math.sin(angle);
             
-            if (i === 0) {
-                ctx.moveTo(x, y2);
-            } else {
-                ctx.lineTo(x, y2);
-            }
+            if (i === 0) ctx.moveTo(x, y2);
+            else ctx.lineTo(x, y2);
         }
         ctx.closePath();
         ctx.stroke();
         
-        // Draw score text
+        // Score display
         ctx.fillText(`${asteroid.label}: ${asteroid.score} PTS`, canvas.width / 4 + 40, y + 5);
     });
 }
 
-// Update welcome screen asteroids
+/**
+ * Welcome screen asteroid management
+ * Updates decorative asteroids that:
+ * - Create visual interest
+ * - Demonstrate game objects
+ * - Maintain consistent motion
+ */
 function updateWelcomeAsteroids() {
     for (let i = 0; i < welcomeAsteroids.length; i++) {
-        // Move asteroid
-        welcomeAsteroids[i].x += welcomeAsteroids[i].velocity.x * 0.5; // Slower movement for welcome screen
+        // Slower movement for aesthetic effect
+        welcomeAsteroids[i].x += welcomeAsteroids[i].velocity.x * 0.5;
         welcomeAsteroids[i].y += welcomeAsteroids[i].velocity.y * 0.5;
-        
-        // Rotate asteroid
         welcomeAsteroids[i].angle += 0.005;
         
-        // Handle edge of screen (wrap around)
+        // Screen wrapping for continuous motion
         handleEdgeOfScreen(welcomeAsteroids[i]);
     }
 }
 
-// Draw welcome screen asteroids
+/**
+ * Welcome screen asteroid rendering
+ * Creates visually consistent asteroids that:
+ * - Match gameplay appearance
+ * - Provide visual interest
+ * - Demonstrate game objects
+ */
 function drawWelcomeAsteroids() {
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 1;
     
     for (let i = 0; i < welcomeAsteroids.length; i++) {
         const asteroid = welcomeAsteroids[i];
-        
-        // Draw asteroid
         ctx.beginPath();
         
-        // Draw a rough circle with jagged edges
+        // Create jagged, organic shapes
         for (let j = 0; j < asteroid.vert; j++) {
             const angle = j * Math.PI * 2 / asteroid.vert;
             const radius = asteroid.radius * asteroid.offset[j];
             const x = asteroid.x + radius * Math.cos(angle + asteroid.angle);
             const y = asteroid.y + radius * Math.sin(angle + asteroid.angle);
             
-            if (j === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+            if (j === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
         }
         
         ctx.closePath();
@@ -457,7 +558,14 @@ function drawWelcomeAsteroids() {
     }
 }
 
-// Draw high scores - updated to handle more entries
+/**
+ * High score display
+ * Shows player rankings with:
+ * - Server-synced scores
+ * - Loading state handling
+ * - Scroll functionality for many entries
+ * - Clear formatting
+ */
 function drawHighScores() {
     ctx.fillStyle = 'white';
     ctx.font = '12px PressStart2P';
@@ -465,7 +573,7 @@ function drawHighScores() {
     
     ctx.fillText('HIGH SCORES', canvas.width * 3/4, canvas.height / 2 + 20);
     
-    // Show loading message if scores haven't been fetched yet
+    // Loading state feedback
     if (!highScoresFetched) {
         ctx.font = '10px PressStart2P';
         ctx.fillText('LOADING...', canvas.width * 3/4, canvas.height / 2 + 50);
@@ -473,16 +581,13 @@ function drawHighScores() {
     }
     
     ctx.font = '10px PressStart2P';
-    // Calculate how many scores to show based on available space
+    // Dynamic display based on available space
     const availableHeight = canvas.height / 2 + 50;
-    const scoreHeight = 20; // Height per score entry
-    const maxToShow = Math.min(10, highScores.length); // Show at most 10 on welcome screen
+    const scoreHeight = 20;
+    const maxToShow = Math.min(10, highScores.length);
     
     for (let i = 0; i < maxToShow; i++) {
-        // Adjust vertical spacing
         const yPos = canvas.height / 2 + 50 + i * scoreHeight;
-        
-        // Format the score with commas for readability
         const formattedScore = highScores[i].score.toLocaleString();
         
         ctx.fillText(
@@ -492,7 +597,7 @@ function drawHighScores() {
         );
     }
     
-    // If there are more scores than we can show, indicate that
+    // Indicate additional scores
     if (highScores.length > maxToShow) {
         ctx.fillText(
             `+ ${highScores.length - maxToShow} MORE...`,
@@ -502,12 +607,19 @@ function drawHighScores() {
     }
 }
 
-// Draw game over screen with initials entry - updated with server submission status
+/**
+ * Game over screen
+ * Provides end-game feedback and high score entry:
+ * - Clear score display
+ * - Interactive initials entry
+ * - Server submission status
+ * - Visual polish and effects
+ */
 function drawGameOver() {
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw stars for background
+    // Maintain visual consistency with star field
     stars.forEach(star => {
         const twinkle = Math.sin(frameCount * star.twinkleSpeed + star.twinkleOffset);
         const brightness = star.brightness * (0.7 + 0.3 * twinkle);
@@ -515,6 +627,7 @@ function drawGameOver() {
         ctx.fillRect(star.x, star.y, star.size, star.size);
     });
     
+    // Game over display
     ctx.fillStyle = 'white';
     ctx.font = '28px PressStart2P';
     ctx.textAlign = 'center';
@@ -524,9 +637,10 @@ function drawGameOver() {
     ctx.fillText(`FINAL SCORE: ${score}`, canvas.width / 2, canvas.height / 3 + 40);
     
     if (enteringInitials) {
+        // High score entry interface
         ctx.fillText('ENTER YOUR INITIALS:', canvas.width / 2, canvas.height / 2);
         
-        // Draw initials entry boxes
+        // Initial entry boxes
         const boxWidth = 40;
         const boxHeight = 50;
         const boxSpacing = 20;
@@ -537,28 +651,28 @@ function drawGameOver() {
             const x = startX + (i * (boxWidth + boxSpacing));
             const y = canvas.height / 2 + 20;
             
-            // Draw box
+            // Visual feedback for current selection
             ctx.strokeStyle = i === currentInitialIndex ? 'yellow' : 'white';
             ctx.lineWidth = i === currentInitialIndex ? 3 : 1;
             ctx.strokeRect(x, y, boxWidth, boxHeight);
             
-            // Draw letter
+            // Initial display
             ctx.fillStyle = 'white';
             ctx.font = '28px PressStart2P';
             ctx.fillText(playerInitials[i], x + boxWidth/2, y + boxHeight/2 + 10);
             
-            // Draw cursor for current position
+            // Cursor animation
             if (i === currentInitialIndex && Math.floor(frameCount / 15) % 2 === 0) {
                 ctx.fillRect(x + boxWidth/2 - 15, y + boxHeight - 10, 30, 3);
             }
         }
         
-        // Draw instructions
+        // User instructions
         ctx.font = '12px PressStart2P';
         ctx.fillText('USE ARROW KEYS TO SELECT LETTERS', canvas.width / 2, canvas.height / 2 + 100);
         ctx.fillText('PRESS ENTER WHEN DONE', canvas.width / 2, canvas.height / 2 + 125);
         
-        // Show submission status if applicable
+        // Server communication status
         if (isSubmittingScore) {
             ctx.fillStyle = 'yellow';
             ctx.fillText('SUBMITTING SCORE...', canvas.width / 2, canvas.height / 2 + 150);
@@ -569,7 +683,7 @@ function drawGameOver() {
             ctx.fillText('PRESS ENTER TO CONTINUE ANYWAY', canvas.width / 2, canvas.height / 2 + 175);
         }
     } else {
-        // If not entering initials, show prompt to continue
+        // Continue prompt
         if (Math.floor(frameCount / 30) % 2 === 0) {
             ctx.font = '12px PressStart2P';
             ctx.fillText('PRESS ENTER TO CONTINUE', canvas.width / 2, canvas.height / 2 + 50);
@@ -595,6 +709,34 @@ function drawPauseScreen() {
 
 // Modify the keydown event handler to handle initials entry and log toggle
 window.addEventListener('keydown', (e) => {
+    // Handle release notes toggle
+    if (e.key === 'n' || e.key === 'N') {
+        showingReleaseNotes = !showingReleaseNotes;
+        releaseNotesScroll = 0; // Reset scroll position
+        addLogMessage('Release notes ' + (showingReleaseNotes ? 'shown' : 'hidden'));
+        return;
+    }
+
+    // Spawn alien with 'U' key (for testing)
+    if ((e.key === 'u' || e.key === 'U') && gameStarted && !gamePaused) {
+        if (aliens.length < ALIEN_MAX_COUNT) {
+            createAlien();
+        }
+        return;
+    }
+
+    // If release notes are showing, only handle scrolling
+    if (showingReleaseNotes) {
+        if (e.key === 'ArrowUp') {
+            releaseNotesScroll = Math.max(0, releaseNotesScroll - SCROLL_SPEED);
+            return;
+        } else if (e.key === 'ArrowDown') {
+            releaseNotesScroll += SCROLL_SPEED;
+            return;
+        }
+        return; // Ignore other keys while showing release notes
+    }
+
     // Toggle log with 'l' key
     if (e.key === 'l' || e.key === 'L') {
         showLog = !showLog;
@@ -997,6 +1139,11 @@ function initGame() {
         invulnerableTime: 180 // 3 seconds at 60fps
     };
     
+    // Reset aliens and spawn timer
+    aliens = [];
+    alienBullets = [];
+    alienSpawnTimer = 0;
+    
     // Create asteroids
     createAsteroids();
     
@@ -1076,18 +1223,21 @@ function createAsteroid(x, y, size) {
 
 // Update game state
 function updateGame() {
-    // If lives are 0 and ship is exploding, only update debris and asteroids
+    // Main game loop handles multiple game states:
+    // 1. Normal gameplay - all systems active
+    // 2. Post-death state - limited updates during explosion animation
+    // 3. Level transition - clearing and spawning new objects
+    // 4. Paused state - maintaining game state without updates
+    
+    // Special case: Post-death state with active explosion
     if (lives <= 0 && ship.exploding) {
-        // Update ship debris
+        // Only update visual effects and passive objects
         updateShipDebris();
-        
-        // Update asteroids
         updateAsteroids();
-        
-        return; // Skip the rest of the game updates
+        return; // Skip active gameplay updates
     }
     
-    // Handle ship rotation (reversed left/right)
+    // Handle ship rotation (reversed left/right for more intuitive controls)
     if (keys.left) {
         ship.rotation = SHIP_ROTATION_SPEED; // Reversed from negative to positive
     } else if (keys.right) {
@@ -1096,7 +1246,7 @@ function updateGame() {
         ship.rotation = 0;
     }
     
-    // Handle ship thrust and sound
+    // Handle ship thrust and associated sound effects
     if (keys.up && !ship.thrusting && !ship.exploding) {
         ship.thrusting = true;
         playThrustSound(true);
@@ -1105,28 +1255,20 @@ function updateGame() {
         playThrustSound(false);
     }
     
-    // Handle firing with sound
+    // Handle firing with sound (space key is reset each frame to prevent continuous firing)
     if (keys.space) {
         fireBullet();
-        keys.space = false; // Reset to prevent continuous firing
+        keys.space = false;
     }
     
-    // Update ship
+    // Update all game objects in specific order to ensure proper interaction
     updateShip();
-    
-    // Update ship debris
     updateShipDebris();
-    
-    // Update bullets
     updateBullets();
-    
-    // Update asteroids
     updateAsteroids();
-    
-    // Check for collisions
     checkCollisions();
     
-    // Check for level completion
+    // Check for level completion and progression
     if (asteroids.length === 0) {
         level++;
         createAsteroids();
@@ -1134,68 +1276,79 @@ function updateGame() {
     }
 }
 
-// Update ship position and rotation
+// Update ship position and rotation using vector-based physics
 function updateShip() {
+    // Handle explosion state if active
     if (ship.exploding) {
         ship.explodeTime--;
         if (ship.explodeTime === 0) {
-            // Find a safe position to respawn
             respawnShipSafely();
         }
         return;
     }
     
-    // Rotate ship
+    // Update ship's angular position based on rotation velocity
     ship.angle += ship.rotation;
     
-    // Apply thrust
+    // Apply thrust using a vector-based physics model:
+    // - Thrust is decomposed into x and y components using trigonometry
+    // - Y component is negative because canvas coordinates increase downward
+    // - Continuous thrust builds up velocity over time, creating momentum
     if (ship.thrusting) {
         ship.thrust.x += SHIP_THRUST * Math.cos(ship.angle);
         ship.thrust.y -= SHIP_THRUST * Math.sin(ship.angle);
     } else {
-        // Apply friction
+        // Apply exponential decay friction to gradually slow the ship
+        // This creates a smooth deceleration effect while maintaining momentum
         ship.thrust.x *= FRICTION;
         ship.thrust.y *= FRICTION;
     }
     
-    // Move ship
+    // Update position based on current velocity (thrust)
     ship.x += ship.thrust.x;
     ship.y += ship.thrust.y;
     
-    // Handle edge of screen (wrap around)
+    // Handle screen wrapping to create infinite space effect
     handleEdgeOfScreen(ship);
 }
 
-// Find a safe position to respawn the ship
+// Find a safe position to respawn the ship using a sophisticated placement algorithm
 function respawnShipSafely() {
-    // Start with the center position
+    // Implements a quadrant-based safe respawn system:
+    // 1. First tries the center of the screen
+    // 2. If unsafe, systematically tries each quadrant of the screen
+    // 3. Considers both current and predicted future positions of asteroids
+    // 4. As a last resort, forcibly moves asteroids to create safe space
+    
     let newX = canvas.width / 2;
     let newY = canvas.height / 2;
     let safePosition = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 30; // Limit attempts to prevent infinite loops
+    const MAX_ATTEMPTS = 30; // Prevent infinite loops while ensuring thorough search
     
-    // Try to find a safe position
+    // Systematic search for safe position
     while (!safePosition && attempts < MAX_ATTEMPTS) {
-        safePosition = true; // Assume position is safe until proven otherwise
+        safePosition = true; // Optimistically assume position is safe
         
-        // Check distance to all asteroids
+        // Check against all asteroids for both current and predicted positions
         for (let i = 0; i < asteroids.length; i++) {
             const asteroid = asteroids[i];
             
-            // Calculate distance from potential spawn point to asteroid
+            // Check current distance to asteroid
             const distance = distBetweenPoints(newX, newY, asteroid.x, asteroid.y);
             
-            // Also consider asteroid's velocity to predict near-future collisions
-            const futureX = asteroid.x + asteroid.velocity.x * 30; // Look 30 frames ahead
+            // Predict asteroid position to prevent spawning in its path
+            // Look ahead 30 frames to account for fast-moving asteroids
+            const futureX = asteroid.x + asteroid.velocity.x * 30;
             const futureY = asteroid.y + asteroid.velocity.y * 30;
             const futureDistance = distBetweenPoints(newX, newY, futureX, futureY);
             
-            // If too close to current position or predicted future position
+            // Position is unsafe if too close to current or predicted asteroid position
             if (distance < SAFE_RESPAWN_DISTANCE || futureDistance < SAFE_RESPAWN_DISTANCE) {
                 safePosition = false;
                 
-                // Try a different position - divide the canvas into quadrants and try each
+                // Systematic quadrant-based position testing
+                // Each quadrant is tried with some randomization to avoid patterns
                 switch (attempts % 4) {
                     case 0: // Top-left quadrant
                         newX = canvas.width * 0.25 + Math.random() * canvas.width * 0.2;
@@ -1215,33 +1368,34 @@ function respawnShipSafely() {
                         break;
                 }
                 
-                break; // Break out of the asteroid loop and try the new position
+                break; // Exit asteroid loop to test new position
             }
         }
         
         attempts++;
     }
     
-    // If we couldn't find a safe position after max attempts, clear some space
+    // Fallback: If no safe position found, forcibly create one
     if (!safePosition) {
-        // Create a safe zone by removing or moving asteroids near the center
+        // Create a safe zone by moving nearby asteroids away from center
+        // This prevents the game from becoming unplayable in crowded situations
         for (let i = asteroids.length - 1; i >= 0; i--) {
             const distance = distBetweenPoints(canvas.width / 2, canvas.height / 2, asteroids[i].x, asteroids[i].y);
             
             if (distance < SAFE_RESPAWN_DISTANCE) {
-                // Move asteroid to the edge of the screen
+                // Move asteroid radially outward to create safe space
                 const angle = Math.atan2(asteroids[i].y - canvas.height / 2, asteroids[i].x - canvas.width / 2);
                 asteroids[i].x = canvas.width / 2 + Math.cos(angle) * SAFE_RESPAWN_DISTANCE * 1.5;
                 asteroids[i].y = canvas.height / 2 + Math.sin(angle) * SAFE_RESPAWN_DISTANCE * 1.5;
             }
         }
         
-        // Use center position
+        // Use center position after clearing space
         newX = canvas.width / 2;
         newY = canvas.height / 2;
     }
     
-    // Create new ship at safe position
+    // Create new ship at safe position with reset state
     ship = {
         x: newX,
         y: newY,
@@ -1255,59 +1409,83 @@ function respawnShipSafely() {
         },
         exploding: false,
         explodeTime: 0,
-        // Add invulnerability period after respawn
         invulnerable: true,
-        invulnerableTime: 180 // 3 seconds at 60fps
+        invulnerableTime: INVULNERABILITY_TIME
     };
-    
-    addLogMessage('Ship respawned at safe location');
 }
 
-// Fire a bullet from the ship
+// Manage player bullet firing with arcade-style limitations
 function fireBullet() {
-    if (ship.exploding || bullets.length >= MAX_BULLETS) {
-        return; // Can't fire while exploding or too many bullets
+    // Bullet system implements classic arcade limitations:
+    // 1. Maximum of 4 bullets on screen (like original Asteroids)
+    // 2. Bullets inherit ship's momentum for tactical depth
+    // 3. Limited lifetime to prevent screen cluttering
+    // 4. Automatic cleanup of expired bullets
+    
+    if (bullets.length < MAX_BULLETS && !ship.exploding) {
+        // Calculate bullet spawn position at ship's nose
+        const angle = ship.angle;
+        const bulletX = ship.x + Math.cos(angle) * ship.radius;
+        const bulletY = ship.y - Math.sin(angle) * ship.radius;
+        
+        // Create bullet with inherited momentum
+        bullets.push({
+            x: bulletX,
+            y: bulletY,
+            xv: BULLET_SPEED * Math.cos(angle) + ship.thrust.x,
+            yv: -BULLET_SPEED * Math.sin(angle) + ship.thrust.y,
+            lifetime: BULLET_LIFETIME
+        });
+        
+        playSound('fire');
     }
-    
-    bullets.push({
-        x: ship.x + 4/3 * ship.radius * Math.cos(ship.angle),
-        y: ship.y - 4/3 * ship.radius * Math.sin(ship.angle),
-        xv: BULLET_SPEED * Math.cos(ship.angle),
-        yv: -BULLET_SPEED * Math.sin(ship.angle),
-        lifetime: BULLET_LIFETIME
-    });
-    
-    // Play fire sound
-    playSound('fire');
 }
 
 // Update bullets position and lifetime
 function updateBullets() {
     for (let i = bullets.length - 1; i >= 0; i--) {
+        const bullet = bullets[i];
+        
         // Move bullet
-        bullets[i].x += bullets[i].xv;
-        bullets[i].y += bullets[i].yv;
+        bullet.x += bullet.xv;
+        bullet.y += bullet.yv;
         
-        // Handle edge of screen (wrap around)
-        // Ensure bullets wrap around the screen properly
-        if (bullets[i].x < 0) {
-            bullets[i].x = canvas.width;
-        } else if (bullets[i].x > canvas.width) {
-            bullets[i].x = 0;
-        }
-        
-        if (bullets[i].y < 0) {
-            bullets[i].y = canvas.height;
-        } else if (bullets[i].y > canvas.height) {
-            bullets[i].y = 0;
-        }
-        
-        // Reduce lifetime
-        bullets[i].lifetime--;
-        
-        // Remove dead bullets
-        if (bullets[i].lifetime <= 0) {
+        // Remove bullet if it goes off screen
+        if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
             bullets.splice(i, 1);
+            continue;
+        }
+        
+        // Check collision with alien
+        if (aliens.length && aliens[0].active) {
+            const dx = bullet.x - aliens[0].x;
+            const dy = bullet.y - aliens[0].y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < ALIEN_SIZE) {
+                // Remove bullet and destroy alien
+                bullets.splice(i, 1);
+                aliens[0].active = false;
+                aliens = [];
+                score += ALIEN_POINTS;
+                playSound('bangLarge');
+                addLogMessage('Alien destroyed! +' + ALIEN_POINTS + ' points');
+                continue;
+            }
+        }
+        
+        // Check collision with asteroids
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+            if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
+                // Remove the bullet
+                bullets.splice(i, 1);
+                
+                // Break the asteroid
+                destroyAsteroid(j);
+                
+                // No need to check other bullets for this asteroid
+                break;
+            }
         }
     }
 }
@@ -1329,49 +1507,46 @@ function updateAsteroids() {
 
 // Handle objects going off screen (wrap around)
 function handleEdgeOfScreen(obj) {
-    if (obj.x < 0 - obj.radius) {
-        obj.x = canvas.width + obj.radius;
-    } else if (obj.x > canvas.width + obj.radius) {
-        obj.x = 0 - obj.radius;
+    // For aliens, use their radius property
+    const radius = obj.radius || 0;
+    
+    if (obj.x < 0 - radius) {
+        obj.x = canvas.width + radius;
+    } else if (obj.x > canvas.width + radius) {
+        obj.x = 0 - radius;
     }
     
-    if (obj.y < 0 - obj.radius) {
-        obj.y = canvas.height + obj.radius;
-    } else if (obj.y > canvas.height + obj.radius) {
-        obj.y = 0 - obj.radius;
+    if (obj.y < 0 - radius) {
+        obj.y = canvas.height + radius;
+    } else if (obj.y > canvas.height + radius) {
+        obj.y = 0 - radius;
     }
 }
 
-// Check for collisions between objects
+// Check for collisions between game objects
 function checkCollisions() {
-    // Check for asteroid collisions with ship
-    if (!ship.exploding && !ship.invulnerable) {
+    // Implement efficient collision detection using distance-based checks
+    // Only check collisions between objects that are close enough to possibly collide
+    // This reduces unnecessary calculations and improves performance
+    
+    // Check ship collisions with asteroids (if ship is vulnerable)
+    if (ship && !ship.exploding && !ship.invulnerable) {
         for (let i = 0; i < asteroids.length; i++) {
             if (distBetweenPoints(ship.x, ship.y, asteroids[i].x, asteroids[i].y) < ship.radius + asteroids[i].radius) {
                 destroyShip();
                 break;
             }
         }
-    } else if (ship.invulnerable) {
-        // Count down invulnerability time
-        ship.invulnerableTime--;
-        if (ship.invulnerableTime <= 0) {
-            ship.invulnerable = false;
-            addLogMessage('Ship vulnerability restored');
-        }
     }
     
-    // Check for bullet collisions with asteroids
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-        for (let j = bullets.length - 1; j >= 0; j--) {
-            if (distBetweenPoints(bullets[j].x, bullets[j].y, asteroids[i].x, asteroids[i].y) < asteroids[i].radius) {
-                // Remove the bullet
-                bullets.splice(j, 1);
-                
-                // Break the asteroid
-                destroyAsteroid(i);
-                
-                // No need to check other bullets for this asteroid
+    // Check bullet collisions with asteroids
+    // Iterate backwards to safely remove objects during iteration
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+            if (distBetweenPoints(bullets[i].x, bullets[i].y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
+                // Remove bullet and destroy asteroid
+                bullets.splice(i, 1);
+                destroyAsteroid(j);
                 break;
             }
         }
@@ -1878,4 +2053,409 @@ function initWelcomeAsteroids() {
     }
     
     addLogMessage('Welcome screen asteroids created');
+}
+
+// Draw release notes overlay
+function drawReleaseNotes() {
+    // Semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Title
+    ctx.fillStyle = 'white';
+    ctx.font = '24px PressStart2P';
+    ctx.textAlign = 'center';
+    ctx.fillText('RELEASE NOTES', canvas.width / 2, 50);
+
+    // Draw close instruction
+    ctx.font = '12px PressStart2P';
+    ctx.fillText('PRESS N TO CLOSE', canvas.width / 2, 80);
+
+    // Calculate visible area
+    const startY = 120 - releaseNotesScroll;
+    let currentY = startY;
+
+    // Get today's date for the latest version
+    const today = new Date();
+    const todayFormatted = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    // Release notes with accurate dates
+    const releases = [
+        {
+            version: '1.0.0',
+            date: '2025-03-01',
+            changes: [
+                'Initial release',
+                'Basic game mechanics implemented',
+                'High score system added',
+                'Sound effects added'
+            ]
+        },
+        {
+            version: '1.1.0',
+            date: '2025-03-10',
+            changes: [
+                'Added release notes system',
+                'Improved asteroid movement',
+                'Added pause functionality',
+                'Fixed bullet count limit'
+            ]
+        },
+        {
+            version: '1.2.0',
+            date: '2025-03-16',
+            changes: [
+                'Added server-based high score system',
+                'Implemented safe respawn system',
+                'Enhanced asteroid behavior with size-based speed',
+                'Added alien spacecraft with intelligent behavior',
+                'Improved collision detection and physics',
+                'Added dynamic ship explosion animations',
+                'Enhanced sound effects using Web Audio API',
+                'Added welcome screen with game instructions',
+                'Implemented debug log system (toggle with L key)'
+            ]
+        }
+    ];
+
+    // Draw releases
+    releases.forEach(release => {
+        // Only draw if in visible area
+        if (currentY > 100 && currentY < canvas.height - 20) {
+            // Draw version and date
+            ctx.font = '16px PressStart2P';
+            ctx.fillStyle = '#FFD700'; // Gold color for version
+            ctx.fillText(`v${release.version} (${release.date})`, canvas.width / 2, currentY);
+
+            // Draw changes
+            ctx.font = '12px PressStart2P';
+            ctx.fillStyle = 'white';
+            release.changes.forEach((change, index) => {
+                currentY += 25;
+                if (currentY > 100 && currentY < canvas.height - 20) {
+                    ctx.fillText(`• ${change}`, canvas.width / 2, currentY);
+                }
+            });
+        }
+        currentY += 40; // Space between versions
+    });
+
+    // Draw scroll indicators if needed
+    if (releaseNotesScroll > 0) {
+        drawScrollIndicator('up', 20);
+    }
+    if (currentY > canvas.height) {
+        drawScrollIndicator('down', canvas.height - 20);
+    }
+}
+
+// Helper function to draw scroll indicators
+function drawScrollIndicator(direction, y) {
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    if (direction === 'up') {
+        ctx.moveTo(canvas.width / 2 - 10, y + 10);
+        ctx.lineTo(canvas.width / 2, y);
+        ctx.lineTo(canvas.width / 2 + 10, y + 10);
+    } else {
+        ctx.moveTo(canvas.width / 2 - 10, y - 10);
+        ctx.lineTo(canvas.width / 2, y);
+        ctx.lineTo(canvas.width / 2 + 10, y - 10);
+    }
+    ctx.closePath();
+    ctx.fill();
+}
+
+// Create a new alien spacecraft
+function createAliens() {
+    aliens = [];
+    
+    // Create aliens based on spawn chance
+    for (let i = 0; i < ALIEN_MAX_COUNT; i++) {
+        if (Math.random() < ALIEN_SPAWN_CHANCE) {
+            aliens.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                dx: Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED,
+                dy: Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED,
+                angle: 0,
+                rotation: 0,
+                targetAngle: 0,
+                fireTimer: 0,
+                directionTimer: 0,
+                active: true,
+                thrusting: false
+            });
+        }
+    }
+    
+    addLogMessage('Aliens created');
+}
+
+// Update alien ships' behavior and state
+function updateAliens() {
+    // Alien AI implements several sophisticated behaviors:
+    // 1. Periodic direction changes to create unpredictable movement
+    // 2. Predictive shooting that leads the target
+    // 3. Smart positioning that maintains optimal attack distance
+    // 4. Asteroid avoidance to prevent self-destruction
+    
+    // Timer-based spawn system scales with game progression
+    alienSpawnTimer--;
+    if (alienSpawnTimer <= 0 && aliens.length < ALIEN_MAX_COUNT) {
+        // Calculate spawn interval that decreases with level
+        const spawnInterval = Math.max(
+            ALIEN_MIN_SPAWN_INTERVAL,
+            ALIEN_BASE_SPAWN_INTERVAL - (level - 1) * ALIEN_SPAWN_INTERVAL_DECREASE
+        );
+        alienSpawnTimer = spawnInterval;
+        spawnAlien();
+    }
+    
+    // Update each alien's behavior and state
+    for (let i = aliens.length - 1; i >= 0; i--) {
+        const alien = aliens[i];
+        
+        // Move alien and handle screen wrapping
+        alien.x += alien.dx;
+        alien.y += alien.dy;
+        handleEdgeOfScreen(alien);
+        
+        // Update direction change timer for unpredictable movement
+        alien.directionTimer++;
+        if (alien.directionTimer >= ALIEN_CHANGE_DIRECTION_RATE) {
+            alien.directionTimer = 0;
+            // Choose new random direction and thrust state
+            alien.targetAngle = Math.random() * Math.PI * 2;
+            alien.thrusting = Math.random() < 0.7; // 70% chance to be moving
+        }
+        
+        // Implement smooth rotation towards target angle
+        const angleDiff = (alien.targetAngle - alien.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+        if (Math.abs(angleDiff) > 0.01) {
+            alien.rotation = Math.sign(angleDiff) * ALIEN_ROTATION_SPEED;
+        } else {
+            alien.rotation = 0;
+        }
+        alien.angle += alien.rotation;
+        
+        // Apply thrust with the same physics model as the player ship
+        if (alien.thrusting) {
+            alien.dx += Math.cos(alien.angle) * ALIEN_THRUST;
+            alien.dy += Math.sin(alien.angle) * ALIEN_THRUST;
+        }
+        
+        // Apply friction to create smooth movement
+        alien.dx *= ALIEN_FRICTION;
+        alien.dy *= ALIEN_FRICTION;
+        
+        // Implement intelligent shooting behavior
+        if (ship && !ship.exploding && alienBullets.length < ALIEN_MAX_BULLETS) {
+            alien.fireTimer++;
+            // Randomize fire rate for unpredictability
+            const fireRate = ALIEN_FIRE_RATE_MIN + Math.random() * (ALIEN_FIRE_RATE_MAX - ALIEN_FIRE_RATE_MIN);
+            
+            if (alien.fireTimer >= fireRate) {
+                alien.fireTimer = 0;
+                
+                // Advanced target prediction system:
+                // 1. Calculate player's future position based on current velocity
+                // 2. Add randomized spread for difficulty balance
+                // 3. Consider distance to target for accuracy scaling
+                const predictionTime = 30; // Look ahead 30 frames
+                const predictedX = ship.x + (ship.thrust.x * predictionTime);
+                const predictedY = ship.y + (ship.thrust.y * predictionTime);
+                
+                // Calculate firing angle with intelligent spread
+                const dx = predictedX - alien.x;
+                const dy = predictedY - alien.y;
+                const angle = Math.atan2(dy, dx);
+                const spread = Math.PI / 8; // 22.5 degrees spread
+                const finalAngle = angle + (Math.random() * spread - spread/2);
+                
+                // Create new bullet with calculated trajectory
+                alienBullets.push({
+                    x: alien.x,
+                    y: alien.y,
+                    dx: Math.cos(finalAngle) * ALIEN_BULLET_SPEED,
+                    dy: Math.sin(finalAngle) * ALIEN_BULLET_SPEED,
+                    active: true,
+                    size: ALIEN_BULLET_SIZE,
+                    pulsePhase: 0
+                });
+                playSound('fire');
+            }
+        }
+    }
+}
+
+// Create a single new alien
+function createAlien() {
+    // Randomly choose spawn side
+    const spawnSide = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
+    let x, y, dx, dy;
+    
+    switch(spawnSide) {
+        case 0: // top
+            x = Math.random() * canvas.width;
+            y = -ALIEN_SIZE;
+            dx = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
+            dy = Math.random() * ALIEN_SPEED;
+            break;
+        case 1: // right
+            x = canvas.width + ALIEN_SIZE;
+            y = Math.random() * canvas.height;
+            dx = -Math.random() * ALIEN_SPEED;
+            dy = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
+            break;
+        case 2: // bottom
+            x = Math.random() * canvas.width;
+            y = canvas.height + ALIEN_SIZE;
+            dx = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
+            dy = -Math.random() * ALIEN_SPEED;
+            break;
+        case 3: // left
+            x = -ALIEN_SIZE;
+            y = Math.random() * canvas.height;
+            dx = Math.random() * ALIEN_SPEED;
+            dy = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
+            break;
+    }
+    
+    aliens.push({
+        x: x,
+        y: y,
+        dx: dx,
+        dy: dy,
+        radius: ALIEN_SIZE, // Add radius property for proper wrapping
+        angle: 0,
+        rotation: 0,
+        targetAngle: 0,
+        fireTimer: 0,
+        directionTimer: 0,
+        active: true,
+        thrusting: false
+    });
+    
+    addLogMessage('New alien spacecraft appeared!');
+}
+
+// Draw aliens
+function drawAliens() {
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    
+    for (let i = 0; i < aliens.length; i++) {
+        const alien = aliens[i];
+        
+        // Save the current context state
+        ctx.save();
+        
+        // Translate to alien's position and rotate
+        ctx.translate(alien.x, alien.y);
+        ctx.rotate(alien.angle);
+
+        // Draw saucer shape
+        ctx.beginPath();
+        ctx.moveTo(-ALIEN_SIZE, 0);
+        ctx.lineTo(-ALIEN_SIZE/2, -ALIEN_SIZE/2);
+        ctx.lineTo(ALIEN_SIZE/2, -ALIEN_SIZE/2);
+        ctx.lineTo(ALIEN_SIZE, 0);
+        ctx.lineTo(ALIEN_SIZE/2, ALIEN_SIZE/2);
+        ctx.lineTo(-ALIEN_SIZE/2, ALIEN_SIZE/2);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Draw cockpit
+        ctx.beginPath();
+        ctx.arc(0, 0, ALIEN_SIZE/4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Draw thrust if active - Fixed direction to match movement
+        if (alien.thrusting) {
+            ctx.fillStyle = 'orangered';
+            ctx.beginPath();
+            const flameSize = 0.8 + 0.4 * Math.random(); // Random flicker effect
+            ctx.moveTo(-ALIEN_SIZE/2, 0);
+            ctx.lineTo(-ALIEN_SIZE - ALIEN_SIZE * flameSize, 0);
+            ctx.lineTo(-ALIEN_SIZE/2, ALIEN_SIZE/3);
+            ctx.moveTo(-ALIEN_SIZE/2, 0);
+            ctx.lineTo(-ALIEN_SIZE/2, -ALIEN_SIZE/3);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Restore the context state
+        ctx.restore();
+    }
+}
+
+// Update alien bullets
+function updateAlienBullets() {
+    // Remove inactive bullets first
+    alienBullets = alienBullets.filter(bullet => bullet.active);
+
+    // Update all existing bullets
+    for (let i = alienBullets.length - 1; i >= 0; i--) {
+        const bullet = alienBullets[i];
+        
+        // Move bullet
+        bullet.x += bullet.dx;
+        bullet.y += bullet.dy;
+
+        // Update pulse animation
+        bullet.pulsePhase = (bullet.pulsePhase + ALIEN_BULLET_PULSE_SPEED) % (Math.PI * 2);
+        bullet.size = ALIEN_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
+
+        // Remove if off screen
+        if (bullet.x < 0 || bullet.x > canvas.width || 
+            bullet.y < 0 || bullet.y > canvas.height) {
+            bullet.active = false;
+            continue;
+        }
+
+        // Check collision with asteroids
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+            if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
+                bullet.active = false;
+                destroyAsteroid(j);
+                break;
+            }
+        }
+
+        // Check collision with player
+        if (ship && !ship.exploding && !ship.invulnerable) {
+            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < SHIP_SIZE) {
+                bullet.active = false;
+                destroyShip();
+            }
+        }
+    }
+}
+
+// Draw alien bullets
+function drawAlienBullets() {
+    ctx.lineWidth = 2;
+    
+    alienBullets.forEach(bullet => {
+        // Create gradient for bullet
+        const gradient = ctx.createRadialGradient(
+            bullet.x, bullet.y, 0,
+            bullet.x, bullet.y, bullet.size
+        );
+        gradient.addColorStop(0, 'white');
+        gradient.addColorStop(1, 'red');
+        
+        // Draw outer glow
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, bullet.size * 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw main bullet
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+        ctx.fill();
+    });
 } 

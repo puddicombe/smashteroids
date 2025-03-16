@@ -1,4 +1,5 @@
 import { INITIAL_LIVES } from './constants';
+import { ReleaseNotes } from './systems/releaseNotes';
 
 class GameState {
     constructor() {
@@ -42,6 +43,12 @@ class GameState {
         this.titleHoverOffset = 0;
         this.titleHoverDirection = 1;
         this.frameCount = 0;
+
+        // Release notes state
+        this.releaseNotes = new ReleaseNotes();
+        this.showingReleaseNotes = false;
+        this.releaseNotesScroll = 0;
+        this.scrollSpeed = 10;
     }
 
     reset() {
@@ -78,6 +85,24 @@ class GameState {
     nextLevel() {
         this.level++;
         return this.level;
+    }
+
+    toggleReleaseNotes() {
+        this.showingReleaseNotes = !this.showingReleaseNotes;
+        this.releaseNotesScroll = 0; // Reset scroll position
+        return this.showingReleaseNotes;
+    }
+
+    scrollReleaseNotes(direction) {
+        if (direction === 'up') {
+            this.releaseNotesScroll = Math.max(0, this.releaseNotesScroll - this.scrollSpeed);
+        } else {
+            this.releaseNotesScroll += this.scrollSpeed;
+        }
+    }
+
+    getReleaseNotes() {
+        return this.releaseNotes.formatForDisplay();
     }
 }
 
