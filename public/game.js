@@ -48,8 +48,12 @@ const SHIP_ROTATION_SPEED = 0.1;
 const FRICTION = 0.99;
 const BULLET_SPEED = 7;
 const BULLET_LIFETIME = 60; // frames
-const ASTEROID_SPEED = 1;
+const BASE_ASTEROID_SPEED = 1;
 const ASTEROID_COUNT = 3; // initial count, increases with level
+const ASTEROID_SPEED_SCALING = 0.1; // How much faster asteroids get per level
+const MAX_ASTEROID_SPEED = 2.5; // Cap on asteroid speed
+const SCORE_MULTIPLIER = 100; // Base score for asteroids
+const ASTEROID_JAG = 0.4; // jaggedness (0 = smooth, 1 = very jagged)
 
 // Key states for smooth controls
 let keys = {
@@ -1039,20 +1043,25 @@ function createAsteroids() {
 // Create a single asteroid
 function createAsteroid(x, y, size) {
     const ASTEROID_VERT = 10; // average number of vertices
-    const ASTEROID_JAG = 0.4; // jaggedness (0 = smooth, 1 = very jagged)
+    
+    // Calculate speed based on level and size
+    const levelSpeedBonus = Math.min((level - 1) * ASTEROID_SPEED_SCALING, MAX_ASTEROID_SPEED - BASE_ASTEROID_SPEED);
+    const sizeSpeedMultiplier = (4 - size) * 0.4; // Smaller asteroids are faster (size 3: 0.4x, size 2: 0.8x, size 1: 1.2x)
+    const currentSpeed = (BASE_ASTEROID_SPEED + levelSpeedBonus) * (1 + sizeSpeedMultiplier);
     
     let asteroid = {
         x: x,
         y: y,
         size: size,
-        radius: size * 20,
+        radius: size * (20 - Math.min(level - 1, 5)), // Asteroids get slightly smaller with level (max 5 levels of shrinking)
         angle: Math.random() * Math.PI * 2,
         vert: Math.floor(Math.random() * (ASTEROID_VERT + 1) + ASTEROID_VERT / 2),
         offset: [],
         velocity: {
-            x: Math.random() * ASTEROID_SPEED * 2 - ASTEROID_SPEED,
-            y: Math.random() * ASTEROID_SPEED * 2 - ASTEROID_SPEED
-        }
+            x: Math.random() * currentSpeed * 2 - currentSpeed,
+            y: Math.random() * currentSpeed * 2 - currentSpeed
+        },
+        rotationSpeed: (Math.random() - 0.5) * 0.02 * (1 + (level - 1) * 0.1) * (1 + sizeSpeedMultiplier) // Smaller asteroids rotate faster too
     };
     
     // Create the asteroid's shape (offset array)
@@ -1310,6 +1319,9 @@ function updateAsteroids() {
         asteroids[i].x += asteroids[i].velocity.x;
         asteroids[i].y += asteroids[i].velocity.y;
         
+        // Rotate asteroid (now with rotation speed)
+        asteroids[i].angle += asteroids[i].rotationSpeed;
+        
         // Handle edge of screen (wrap around)
         handleEdgeOfScreen(asteroids[i]);
     }
@@ -1539,7 +1551,9 @@ function updateShipDebris() {
 // Destroy an asteroid and potentially create smaller ones
 function destroyAsteroid(index) {
     const asteroid = asteroids[index];
-    score += 100 * (4 - asteroid.size); // More points for smaller asteroids
+    // Score increases with level
+    const levelBonus = Math.floor((level - 1) * 0.5 * SCORE_MULTIPLIER); // 50% more points per level
+    score += (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
     
     // Play appropriate explosion sound based on asteroid size
     if (asteroid.size === 3) {
@@ -1552,7 +1566,9 @@ function destroyAsteroid(index) {
     
     // Create smaller asteroids
     if (asteroid.size > 1) {
-        for (let i = 0; i < 2; i++) {
+        // Higher levels create more child asteroids
+        const numChildren = Math.min(2 + Math.floor((level - 1) / 3), 4); // Add an extra child every 3 levels, max 4
+        for (let i = 0; i < numChildren; i++) {
             asteroids.push(createAsteroid(
                 asteroid.x,
                 asteroid.y,
@@ -1564,7 +1580,7 @@ function destroyAsteroid(index) {
     // Remove the asteroid
     asteroids.splice(index, 1);
     
-    addLogMessage('Asteroid destroyed! Score: ' + score);
+    addLogMessage(`Asteroid destroyed! Score: ${score} (Level ${level} bonus: ${levelBonus})`);
 }
 
 // Calculate distance between two points
@@ -1705,30 +1721,37 @@ function drawBullets() {
 
 // Draw game information (score, lives, level)
 function drawGameInfo() {
-    // Draw black background for the top info bar
     ctx.fillStyle = 'black';
-    ctx.fillRect(0, 0, canvas.width, 40);
+    ctx.fillRect(0, 0, canvas.width, 40); // Black background for info bar
     
-    // Draw border for the info bar
     ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, canvas.width, 40);
+    ctx.strokeRect(0, 0, canvas.width, 40); // White border
     
-    // Draw score, level, and lives
     ctx.fillStyle = 'white';
     ctx.font = '16px PressStart2P';
-    
-    // Score on the left
     ctx.textAlign = 'left';
-    ctx.fillText('SCORE: ' + score, 20, 25);
+    ctx.fillText(`Score: ${score}`, 20, 25);
     
-    // Level in the center
     ctx.textAlign = 'center';
-    ctx.fillText('LEVEL: ' + level, canvas.width / 2, 25);
+    ctx.fillText(`Level: ${level}`, canvas.width / 2, 25);
     
-    // Lives on the right
     ctx.textAlign = 'right';
-    ctx.fillText('LIVES: ' + lives, canvas.width - 20, 25);
+    ctx.fillText(`Lives: ${lives}`, canvas.width - 20, 25);
+    
+    // Add level transition message
+    if (asteroids.length === 0) {
+        ctx.font = '20px PressStart2P';
+        ctx.textAlign = 'center';
+        ctx.fillText(`LEVEL ${level} COMPLETE!`, canvas.width / 2, canvas.height / 2);
+        ctx.font = '12px PressStart2P';
+        ctx.fillText('Get Ready for Next Level...', canvas.width / 2, canvas.height / 2 + 30);
+        
+        // Show level stats
+        ctx.font = '10px PressStart2P';
+        ctx.fillText(`Asteroid Speed: ${Math.round((BASE_ASTEROID_SPEED + Math.min((level - 1) * ASTEROID_SPEED_SCALING, MAX_ASTEROID_SPEED - BASE_ASTEROID_SPEED)) * 100)}%`, canvas.width / 2, canvas.height / 2 + 60);
+        ctx.fillText(`Score Multiplier: ${Math.round((1 + (level - 1) * 0.5) * 100)}%`, canvas.width / 2, canvas.height / 2 + 80);
+        ctx.fillText(`Asteroid Children: ${Math.min(2 + Math.floor((level - 1) / 3), 4)}`, canvas.width / 2, canvas.height / 2 + 100);
+    }
 }
 
 // Draw ship debris
@@ -1841,13 +1864,12 @@ function initWelcomeAsteroids() {
             vert: Math.floor(Math.random() * 6) + 5,
             offset: [],
             velocity: {
-                x: Math.random() * ASTEROID_SPEED - ASTEROID_SPEED/2,
-                y: Math.random() * ASTEROID_SPEED - ASTEROID_SPEED/2
+                x: Math.random() * BASE_ASTEROID_SPEED - BASE_ASTEROID_SPEED/2,
+                y: Math.random() * BASE_ASTEROID_SPEED - BASE_ASTEROID_SPEED/2
             }
         });
         
         // Create the asteroid's shape (offset array)
-        const ASTEROID_JAG = 0.4;
         for (let j = 0; j < welcomeAsteroids[i].vert; j++) {
             welcomeAsteroids[i].offset.push(
                 Math.random() * ASTEROID_JAG * 2 + 1 - ASTEROID_JAG
