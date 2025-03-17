@@ -3855,12 +3855,13 @@ function startLevelAnnouncement() {
     levelStartParticles = [];
     
     // Create particles that fly outward from center
+    // Updated y-coordinate to match the new text position
     for (let i = 0; i < LEVEL_PARTICLE_COUNT; i++) {
         const angle = (i / LEVEL_PARTICLE_COUNT) * Math.PI * 2;
         const speed = 3 + Math.random() * 2;
         levelStartParticles.push({
             x: canvas.width / 2,
-            y: canvas.height / 2,
+            y: canvas.height / 3,
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
             size: 2 + Math.random() * 2,
@@ -3928,8 +3929,8 @@ function drawLevelAnnouncement() {
             ctx.restore();
         }
         
-        // Draw level text
-        ctx.translate(canvas.width / 2, canvas.height / 2);
+        // Draw level text - moved up from canvas.height / 2 to canvas.height / 3
+        ctx.translate(canvas.width / 2, canvas.height / 3);
         ctx.scale(scale, scale);
         
         // Draw glow effect
