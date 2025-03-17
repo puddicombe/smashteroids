@@ -211,7 +211,7 @@ let level = 1;
  * - Progressive challenge scaling
  * - Rewarding scoring system
  */
-const SHIP_SIZE = 20;                    // Reduced from 30 to 20 for a smaller ship
+const SHIP_SIZE = 30;                    // Increased from 20 to 30 for a bigger ship
 const SHIP_THRUST = 0.1;                 // Reduced from 0.5 to 0.3 for more controlled movement
 const SHIP_MAX_THRUST = 0.3;             // Reduced from 0.5 to match new thrust value
 const SHIP_ROTATION_SPEED = 0.1;         // Rotation rate unchanged
@@ -333,6 +333,10 @@ const MAX_BULLETS = 4;
 let isSubmittingScore = false;
 let scoreSubmitError = null;
 let lastScoreSubmitTime = 0;
+
+// Near the top of the file, add a variable to store the high score
+// ... existing code ...
+let pendingHighScore = 0; // Add this variable to store the score for high score submission
 
 // ... rest of the existing code ...
 
@@ -499,6 +503,11 @@ window.addEventListener('load', function() {
 function gameLoop() {
     // Increment frame counter for animations
     frameCount++;
+    
+    // Update high score submission cooldown
+    if (highScoreSubmitCooldown > 0) {
+        highScoreSubmitCooldown--;
+    }
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'black';
@@ -1325,8 +1334,14 @@ window.addEventListener('keydown', (e) => {
         return;
     }
     
-    if (e.key === 'Enter' && !gameStarted) {
-        // Transition to the game state
+    if (e.key === 'Enter' && !gameStarted && !enteringInitials) {
+        // Don't start game if we're in the post-submission cooldown period
+        // or if we're showing the submission confirmation
+        if (highScoreSubmitCooldown > 0 || inScoreSubmissionTransition) {
+            return;
+        }
+        
+        // Transition to the game state ONLY if not entering initials
         gameStarted = true;
         gamePaused = false; // Ensure game starts unpaused
         initGame();
@@ -1335,6 +1350,12 @@ window.addEventListener('keydown', (e) => {
         // Exit game and return to welcome screen
         gameStarted = false;
         gamePaused = false; // Reset pause state
+        
+        // Don't reset score if entering initials (preserve for high score submission)
+        if (!enteringInitials) {
+            score = 0; // Only reset score if not in high score entry
+        }
+        
         addLogMessage('Game exited - returned to welcome screen');
     }
     
@@ -1544,6 +1565,12 @@ function initGame() {
     score = 0;
     displayScore = 0;
     targetScore = 0;
+    
+    // Only reset pendingHighScore if not in the process of submitting a score
+    if (!enteringInitials && !isSubmittingScore) {
+        pendingHighScore = 0; // Reset pending high score
+    }
+    
     level = 1;
     lives = 3;
     gameStarted = true;
@@ -2130,6 +2157,11 @@ function destroyShip() {
         // Game over - but don't immediately return to welcome screen
         addLogMessage('Game Over! Score: ' + score);
         
+        // Save final score for debugging and submission
+        window.lastKnownScore = score;
+        pendingHighScore = score; // Store the score for high score submission
+        console.log('Game over - final score:', score);
+        
         // Set a timeout to transition to initials entry after explosion animation
         setTimeout(() => {
             // Stop the player from controlling the ship
@@ -2155,18 +2187,24 @@ function createShipDebris() {
     // Clear any existing debris
     shipDebris = [];
     
-    // Calculate ship points using the new ship design
-    const noseX = ship.x + 1.7 * ship.radius * Math.cos(ship.angle);
-    const noseY = ship.y - 1.7 * ship.radius * Math.sin(ship.angle);
+    // Calculate ship points based on the dart shape in drawShipShape
+    const angle = ship.angle;
+    const x = ship.x;
+    const y = ship.y;
+    const radius = ship.radius;
     
-    const rearLeftX = ship.x - ship.radius * (0.8 * Math.cos(ship.angle) + 1.2 * Math.sin(ship.angle));
-    const rearLeftY = ship.y + ship.radius * (0.8 * Math.sin(ship.angle) - 1.2 * Math.cos(ship.angle));
+    // Calculate the vertices of the dart ship
+    const noseX = x + radius * Math.cos(angle);
+    const noseY = y - radius * Math.sin(angle);
     
-    const rearRightX = ship.x - ship.radius * (0.8 * Math.cos(ship.angle) - 1.2 * Math.sin(ship.angle));
-    const rearRightY = ship.y + ship.radius * (0.8 * Math.sin(ship.angle) + 1.2 * Math.cos(ship.angle));
+    const rearLeftX = x - radius * (0.8 * Math.cos(angle) + 0.6 * Math.sin(angle));
+    const rearLeftY = y + radius * (0.8 * Math.sin(angle) - 0.6 * Math.cos(angle));
     
-    const centerRearX = ship.x - ship.radius * 0.5 * Math.cos(ship.angle);
-    const centerRearY = ship.y + ship.radius * 0.5 * Math.sin(ship.angle);
+    const centerRearX = x - radius * 0.5 * Math.cos(angle);
+    const centerRearY = y + radius * 0.5 * Math.sin(angle);
+    
+    const rearRightX = x - radius * (0.8 * Math.cos(angle) - 0.6 * Math.sin(angle));
+    const rearRightY = y + radius * (0.8 * Math.sin(angle) + 0.6 * Math.cos(angle));
     
     // Create debris for each line segment of the ship
     // Line 1: Nose to rear left
@@ -2187,16 +2225,16 @@ function createShipDebris() {
         lifetime: DEBRIS_LIFETIME
     });
     
-    // Line 2: Rear left to rear right
+    // Line 2: Rear left to center rear
     shipDebris.push({
         x1: rearLeftX,
         y1: rearLeftY,
-        x2: rearRightX,
-        y2: rearRightY,
-        centerX: (rearLeftX + rearRightX) / 2,
-        centerY: (rearLeftY + rearRightY) / 2,
-        length: Math.sqrt(Math.pow(rearLeftX - rearRightX, 2) + Math.pow(rearLeftY - rearRightY, 2)),
-        angle: Math.atan2(rearRightY - rearLeftY, rearRightX - rearLeftX),
+        x2: centerRearX,
+        y2: centerRearY,
+        centerX: (rearLeftX + centerRearX) / 2,
+        centerY: (rearLeftY + centerRearY) / 2,
+        length: Math.sqrt(Math.pow(rearLeftX - centerRearX, 2) + Math.pow(rearLeftY - centerRearY, 2)),
+        angle: Math.atan2(centerRearY - rearLeftY, centerRearX - rearLeftX),
         rotationSpeed: (Math.random() - 0.5) * DEBRIS_ROTATION_SPEED * 2,
         velocity: {
             x: ship.thrust.x + (Math.random() - 0.5) * DEBRIS_SPEED,
@@ -2205,7 +2243,25 @@ function createShipDebris() {
         lifetime: DEBRIS_LIFETIME
     });
     
-    // Line 3: Rear right to nose
+    // Line 3: Center rear to rear right
+    shipDebris.push({
+        x1: centerRearX,
+        y1: centerRearY,
+        x2: rearRightX,
+        y2: rearRightY,
+        centerX: (centerRearX + rearRightX) / 2,
+        centerY: (centerRearY + rearRightY) / 2,
+        length: Math.sqrt(Math.pow(centerRearX - rearRightX, 2) + Math.pow(centerRearY - rearRightY, 2)),
+        angle: Math.atan2(rearRightY - centerRearY, rearRightX - centerRearX),
+        rotationSpeed: (Math.random() - 0.5) * DEBRIS_ROTATION_SPEED * 2,
+        velocity: {
+            x: ship.thrust.x + (Math.random() - 0.5) * DEBRIS_SPEED,
+            y: ship.thrust.y + (Math.random() - 0.5) * DEBRIS_SPEED
+        },
+        lifetime: DEBRIS_LIFETIME
+    });
+    
+    // Line 4: Rear right to nose
     shipDebris.push({
         x1: rearRightX,
         y1: rearRightY,
@@ -2219,24 +2275,6 @@ function createShipDebris() {
         velocity: {
             x: ship.thrust.x + (Math.random() - 0.5) * DEBRIS_SPEED,
             y: ship.thrust.y + (Math.random() - 0.5) * DEBRIS_SPEED
-        },
-        lifetime: DEBRIS_LIFETIME
-    });
-    
-    // Line 4: Center line (nose to center rear)
-    shipDebris.push({
-        x1: noseX,
-        y1: noseY,
-        x2: centerRearX,
-        y2: centerRearY,
-        centerX: (noseX + centerRearX) / 2,
-        centerY: (noseY + centerRearY) / 2,
-        length: Math.sqrt(Math.pow(noseX - centerRearX, 2) + Math.pow(noseY - centerRearY, 2)),
-        angle: Math.atan2(centerRearY - noseY, centerRearX - noseX),
-        rotationSpeed: (Math.random() - 0.5) * DEBRIS_ROTATION_SPEED * 3, // Faster rotation for smaller piece
-        velocity: {
-            x: ship.thrust.x + (Math.random() - 0.5) * DEBRIS_SPEED * 1.5, // More random movement
-            y: ship.thrust.y + (Math.random() - 0.5) * DEBRIS_SPEED * 1.5
         },
         lifetime: DEBRIS_LIFETIME
     });
@@ -2403,35 +2441,14 @@ function drawShip() {
     }
     
     ctx.lineWidth = 2;
-    ctx.beginPath();
     
-    // Nose of the ship - make it more pronounced by extending it further
-    const noseX = drawX + 1.7 * ship.radius * Math.cos(ship.angle);
-    const noseY = drawY - 1.7 * ship.radius * Math.sin(ship.angle);
-    
-    // Rear left - widen the base
-    const rearLeftX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) + 1.2 * Math.sin(ship.angle));
-    const rearLeftY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) - 1.2 * Math.cos(ship.angle));
-    
-    // Rear right - widen the base
-    const rearRightX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) - 1.2 * Math.sin(ship.angle));
-    const rearRightY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) + 1.2 * Math.cos(ship.angle));
-    
-    // Draw the main triangle
-    ctx.moveTo(noseX, noseY);
-    ctx.lineTo(rearLeftX, rearLeftY);
-    ctx.lineTo(rearRightX, rearRightY);
-    ctx.closePath();
+    // Draw the dart-shaped ship
+    ctx.save();
+    ctx.translate(drawX, drawY);
+    ctx.rotate(-ship.angle); // Negative angle to fix the rotation direction
+    drawShipShape(0, 0, ship.radius);
     ctx.stroke();
-    
-    // Add a center line to emphasize direction
-    const centerRearX = drawX - ship.radius * 0.5 * Math.cos(ship.angle);
-    const centerRearY = drawY + ship.radius * 0.5 * Math.sin(ship.angle);
-    
-    ctx.beginPath();
-    ctx.moveTo(noseX, noseY);
-    ctx.lineTo(centerRearX, centerRearY);
-    ctx.stroke();
+    ctx.restore();
     
     // Draw enhanced thruster with gradient
     if (ship.thrusting) {
@@ -2450,9 +2467,16 @@ function drawShip() {
         
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.moveTo(rearLeftX, rearLeftY);
+        
+        // Adjust thruster position to match the dart shape's rear
+        const thrustLeftX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) + 0.6 * Math.sin(ship.angle));
+        const thrustLeftY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) - 0.6 * Math.cos(ship.angle));
+        const thrustRightX = drawX - ship.radius * (0.8 * Math.cos(ship.angle) - 0.6 * Math.sin(ship.angle));
+        const thrustRightY = drawY + ship.radius * (0.8 * Math.sin(ship.angle) + 0.6 * Math.cos(ship.angle));
+        
+        ctx.moveTo(thrustLeftX, thrustLeftY);
         ctx.lineTo(flameTipX, flameTipY);
-        ctx.lineTo(rearRightX, rearRightY);
+        ctx.lineTo(thrustRightX, thrustRightY);
         ctx.closePath();
         ctx.fill();
         
@@ -2734,20 +2758,55 @@ function drawShipDebris() {
 
 // Check if score is a high score - updated to check against server scores
 function isHighScore(score) {
+    console.log('Checking if score is high score:', score, 'pendingHighScore:', pendingHighScore);
+    
+    // Use the higher of current score or pendingHighScore
+    const actualScore = Math.max(score, pendingHighScore);
+    
     // If we haven't fetched scores yet, be conservative and assume it's a high score
     if (!highScoresFetched) return true;
     
     // If there are fewer than HIGH_SCORE_COUNT scores, it's definitely a high score
-    if (highScores.length < HIGH_SCORE_COUNT) return score > 0;
+    if (highScores.length < HIGH_SCORE_COUNT) return actualScore > 0;
     
     // Otherwise, check if it's higher than the lowest score
-    return score > 0 && score > highScores[highScores.length - 1].score;
+    return actualScore > 0 && actualScore > highScores[highScores.length - 1].score;
 }
 
 // New function to submit high score to server
 function submitHighScore(initials, score) {
     isSubmittingScore = true;
     scoreSubmitError = null;
+    
+    // Capture score values before they can be reset by other operations
+    // Store locally within this function closure to protect from external changes
+    const finalPendingScore = pendingHighScore;
+    const finalWindowScore = window.lastKnownScore;
+    const finalCurrentScore = score;
+    
+    // Use pendingHighScore instead of current score value which may have been reset
+    // Create a prioritized selection logic to use the highest available score
+    let scoreToSubmit = 0;
+    if (finalPendingScore > 0) {
+        scoreToSubmit = finalPendingScore;
+    } else if (finalCurrentScore > 0) {
+        scoreToSubmit = finalCurrentScore;
+    } else if (finalWindowScore > 0) {
+        scoreToSubmit = finalWindowScore;
+    }
+    
+    // Add debug logging for score value
+    console.log('Submitting highscore - diagnostic information:');
+    console.log('- Current score value:', finalCurrentScore);
+    console.log('- Pending high score value:', finalPendingScore);
+    console.log('- Window last known score:', finalWindowScore);
+    console.log('- Final score to submit:', scoreToSubmit);
+    
+    // Debug: Check if score is being passed correctly
+    if (scoreToSubmit === 0) {
+        console.warn('WARNING: Attempting to submit a zero score despite fallback mechanisms');
+        return; // Prevent submission of zero scores
+    }
     
     // Collect some game data for potential verification
     const gameData = {
@@ -2766,24 +2825,39 @@ function submitHighScore(initials, score) {
         },
         body: JSON.stringify({ 
             initials, 
-            score,
+            score: scoreToSubmit, // Use the stored score value
             gameData
         }),
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Server returned error: ' + response.status);
+            // Get more detailed error info
+            return response.text().then(text => {
+                console.error('Error response body:', text);
+                throw new Error('Server returned error: ' + response.status + ' - ' + text);
+            });
         }
         return response.json();
     })
     .then(data => {
         // Update high scores with the latest from server
         highScores = data.highScores;
+        
+        // Reset game state immediately
         isSubmittingScore = false;
         enteringInitials = false;
-        addLogMessage(`High score added: ${initials} - ${score}`);
+        pendingHighScore = 0;
+        gameStarted = false;
+        gamePaused = false;
+        
+        // Display a simple confirmation toast
+        addLogMessage(`High score added: ${initials} - ${scoreToSubmit}`);
+        
         // Play a sound for feedback
         playSound('bangLarge');
+        
+        // Set cooldown to prevent immediate restart
+        highScoreSubmitCooldown = 90;
     })
     .catch(error => {
         isSubmittingScore = false;
@@ -2791,6 +2865,12 @@ function submitHighScore(initials, score) {
         addLogMessage(`Error submitting high score: ${error.message}`);
         // Still play a sound for feedback
         playSound('bangSmall');
+        
+        // Handle error case and prevent game restart
+        setTimeout(() => {
+            enteringInitials = false;
+            gameStarted = false;
+        }, 3000);
     });
 }
 
@@ -3884,4 +3964,9 @@ function drawLevelAnnouncement() {
         ctx.restore();
     }
 }
+
+// Add a cooldown variable near the top of your file with other game state variables
+let highScoreSubmitCooldown = 0;
+
+// Remove the transition state variable since we're using a simpler approach
   

@@ -60,13 +60,21 @@ app.get('/api/highscores', (req, res) => {
 app.post('/api/highscores', (req, res) => {
     const { initials, score, gameData } = req.body;
     
+    // Add detailed logging for debugging
+    console.log('Received highscore submission:');
+    console.log('Initials:', initials);
+    console.log('Score:', score, typeof score);
+    console.log('Request body:', req.body);
+    
     // Basic validation
-    if (!initials || !score || typeof score !== 'number') {
+    if (!initials || score === undefined || score === null || typeof score !== 'number') {
+        console.log('Validation failed: Missing initials or score, or score is not a number');
         return res.status(400).json({ error: 'Invalid score data' });
     }
     
     // Simple validation to prevent unreasonable scores
     if (score < 0 || score > 1000000) {
+        console.log('Validation failed: Score out of valid range:', score);
         return res.status(400).json({ error: 'Score out of valid range' });
     }
     
