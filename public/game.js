@@ -32,106 +32,131 @@ const SCORE_POPUP_FADE_START = 45; // When to start fading (frames remaining)
 const SCORE_POPUP_BOUNCE_AMPLITUDE = 0.3; // Bounce effect amplitude
 
 // Create a score popup at the given position
-function createScorePopup(x, y, points) {
-    scorePopups.push({
-        x: x,
-        y: y,
-        points: points,
-        lifetime: SCORE_POPUP_LIFETIME,
-        scale: 0.5, // Start smaller for a pop-in effect
-        opacity: 1,
-        rotation: (Math.random() - 0.5) * 0.2, // Slight random rotation
-        bouncePhase: Math.random() * Math.PI * 2 // Random bounce phase
-    });
+function createScorePopup(x, y, points, isLevelBonus = false) {
+    // For level bonuses, keep the existing bouncing behavior
+    if (isLevelBonus) {
+        scorePopups.push({
+            x,
+            y,
+            points,
+            lifetime: SCORE_POPUP_LIFETIME * 3,
+            scale: 0.5, // Start at half size
+            opacity: 1,
+            rotation: 0,
+            bouncePhase: 0,
+            isLevelBonus,
+            color: null
+        });
+    } else {
+        // For regular score popups, ensure they're simple and non-rotating
+        scorePopups.push({
+            x,
+            y,
+            points,
+            lifetime: SCORE_POPUP_LIFETIME,
+            scale: 0.5, // Start at half size to avoid huge initial appearance
+            opacity: 1,
+            rotation: 0, // Force zero rotation
+            bouncePhase: 0, // No bounce
+            isLevelBonus,
+            color: null
+        });
+    }
 }
 
 // Update score popups
 function updateScorePopups() {
-    for (let i = scorePopups.length - 1; i >= 0; i--) {
+    const lifetimeReduction = 60 * deltaTime; // 60 fps equivalent
+    const moveSpeed = SCORE_POPUP_SPEED * 60 * deltaTime; // Make movement frame-rate independent
+    
+    for (let i = 0; i < scorePopups.length; i++) {
         const popup = scorePopups[i];
         
-        // Move popup upward with a slight bounce effect
-        popup.y -= SCORE_POPUP_SPEED;
+        // Update lifetime based on delta time instead of fixed frames
+        popup.lifetime -= lifetimeReduction;
         
-        // Update lifetime
-        popup.lifetime--;
-        
-        // Scale up quickly at start for pop-in effect
-        if (popup.lifetime > SCORE_POPUP_LIFETIME - 10) {
-            popup.scale = 1 + (SCORE_POPUP_LIFETIME - popup.lifetime) * 0.05;
+        if (popup.isLevelBonus) {
+            // Level bonus behavior - bounce and scale
+            popup.bouncePhase += 0.1 * 60 * deltaTime;
+            if (popup.scale < 2.0) {
+                popup.scale += 0.1 * 60 * deltaTime; // Scale growth adjusted for frame rate
+            }
+            popup.y -= moveSpeed * 0.5 * (1 + Math.sin(popup.bouncePhase));
         } else {
-            // Add a subtle bounce effect
-            popup.scale = 1 + Math.sin(popup.bouncePhase + (SCORE_POPUP_LIFETIME - popup.lifetime) * 0.2) * SCORE_POPUP_BOUNCE_AMPLITUDE;
+            // Regular score popup - simple upward movement with initial scaling
+            popup.y -= moveSpeed * 1.2;
+            
+            // Simple scale-in effect: use percentage of total lifetime instead of frame count
+            const percentComplete = 1 - (popup.lifetime / SCORE_POPUP_LIFETIME);
+            if (percentComplete < 0.25) { // First quarter of lifetime
+                // Start at 0.5 and grow to 1.0 over the first 25% of lifetime
+                popup.scale = 0.5 + (percentComplete * 2);
+            } else {
+                popup.scale = 1.0; // Stay at full size for the rest
+            }
         }
         
-        // Start fading out
-        if (popup.lifetime < SCORE_POPUP_FADE_START) {
-            popup.opacity = popup.lifetime / SCORE_POPUP_FADE_START;
-        }
-        
-        // Remove dead popups
-        if (popup.lifetime <= 0) {
-            scorePopups.splice(i, 1);
+        // Fade out as lifetime approaches zero - based on percentage of lifetime
+        if (popup.lifetime < SCORE_POPUP_LIFETIME * 0.33) {
+            popup.opacity = popup.lifetime / (SCORE_POPUP_LIFETIME * 0.33);
         }
     }
+    
+    // Remove dead popups
+    scorePopups = scorePopups.filter(popup => popup.lifetime > 0);
 }
 
 // Draw score popups
 function drawScorePopups() {
     ctx.textAlign = 'center';
+    ctx.lineWidth = 2;
     
-    scorePopups.forEach(popup => {
+    for (let i = 0; i < scorePopups.length; i++) {
+        const popup = scorePopups[i];
+        
+        // Save the current transform state
         ctx.save();
         
-        // Set up text style
-        ctx.font = '18px "Press Start 2P"';
+        // Set up transform
+        ctx.translate(popup.x, popup.y);
         
-        // Determine color based on score value
-        let color1, color2;
-        if (popup.points >= 1000) {
-            // Alien kills - Gold/Yellow
-            color1 = '#FFD700';
-            color2 = '#FFA500';
-        } else if (popup.points >= 300) {
-            // Small asteroid - Purple/Pink
-            color1 = '#FF69B4';
-            color2 = '#9370DB';
-        } else if (popup.points >= 200) {
-            // Medium asteroid - Blue/Cyan
-            color1 = '#00BFFF';
-            color2 = '#4169E1';
+        if (popup.isLevelBonus) {
+            // Level bonus popups can have rotation and bounce effects
+            ctx.rotate(popup.rotation);
+            ctx.scale(popup.scale, popup.scale);
+            
+            // Bold yellow text for level bonuses
+            ctx.font = 'bold 24px "Press Start 2P", monospace';
+            ctx.fillStyle = 'rgba(255, 255, 0, ' + popup.opacity + ')';
+            ctx.strokeStyle = 'rgba(255, 120, 0, ' + popup.opacity + ')';
         } else {
-            // Large asteroid - Green/Teal
-            color1 = '#98FB98';
-            color2 = '#20B2AA';
+            // Regular score popups - absolutely no rotation, only positive scale
+            const scale = Math.abs(popup.scale); // Ensure scale is positive
+            ctx.scale(scale, scale);
+            
+            // Set text style based on point value
+            if (popup.points >= 1000) {
+                ctx.font = 'bold 20px "Press Start 2P", monospace';
+                ctx.fillStyle = 'rgba(255, 215, 0, ' + popup.opacity + ')'; // Gold
+                ctx.strokeStyle = 'rgba(255, 165, 0, ' + popup.opacity + ')'; // Orange
+            } else if (popup.points >= 200) {
+                ctx.font = 'bold 16px "Press Start 2P", monospace';
+                ctx.fillStyle = 'rgba(173, 216, 230, ' + popup.opacity + ')'; // Light blue
+                ctx.strokeStyle = 'rgba(30, 144, 255, ' + popup.opacity + ')'; // Dodger blue
+            } else {
+                ctx.font = '16px "Press Start 2P", monospace';
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + popup.opacity + ')'; // White
+                ctx.strokeStyle = 'rgba(100, 149, 237, ' + popup.opacity + ')'; // Cornflower blue
+            }
         }
         
-        // Create gradient
-        const gradient = ctx.createLinearGradient(
-            popup.x,
-            popup.y - 10,
-            popup.x,
-            popup.y + 10
-        );
-        gradient.addColorStop(0, color1);
-        gradient.addColorStop(1, color2);
+        // Draw text with outline for better visibility
+        ctx.strokeText(popup.points, 0, 0);
+        ctx.fillText(popup.points, 0, 0);
         
-        // Apply scale and rotation transform
-        ctx.translate(popup.x, popup.y);
-        ctx.scale(popup.scale, popup.scale);
-        ctx.rotate(popup.rotation);
-        
-        // Draw score with gradient and glow effect
-        ctx.shadowColor = color1;
-        ctx.shadowBlur = 15;
-        ctx.fillStyle = gradient;
-        ctx.globalAlpha = popup.opacity;
-        
-        // Draw text with + prefix
-        ctx.fillText(`+${popup.points}`, 0, 0);
-        
+        // Restore transform
         ctx.restore();
-    });
+    }
 }
 
 // Visual enhancement features
@@ -199,6 +224,9 @@ let bullets = [];
 let aliens = [];           // Array to hold alien ships
 let alienBullets = [];     // Array to hold alien bullets
 let alienSpawnTimer = 0;   // Timer for alien spawning
+let battlestar = null;     // Battlestar boss ship
+let battlestarBullets = []; // Battlestar bullets
+let battlestarDebris = []; // Battlestar debris and effects
 let score = 0;
 let lives = 3;
 let level = 1;
@@ -269,6 +297,21 @@ const ALIEN_SPAWN_RANDOM = 10000;        // Additional random delay (up to 10 se
 const ALIEN_INVULNERABILITY_TIME = 180; // 3 seconds at 60fps
 const ALIEN_SPAWN_EFFECT_DURATION = 60; // 1 second spawn animation
 const ALIEN_SPAWN_PARTICLES = 20;
+
+// Battlestar constants
+const BATTLESTAR_WIDTH = 200;            // Width of the battlestar
+const BATTLESTAR_HEIGHT = 80;            // Height of the battlestar
+const BATTLESTAR_SPEED = 1.5;            // Increased speed for better movement with delta time
+const BATTLESTAR_MAX_HEALTH = 10;        // Health points of the battlestar
+const BATTLESTAR_DAMAGE_THRESHOLDS = [7, 4, 1]; // Thresholds for damage states
+const BATTLESTAR_CANNON_COUNT = 4;       // Number of cannons on the battlestar
+const BATTLESTAR_FIRE_RATE = 90;         // Frames between cannon shots
+const BATTLESTAR_BULLET_SPEED = 4;       // Speed of battlestar bullets
+const BATTLESTAR_BULLET_SIZE = 4;        // Size of battlestar bullets
+const BATTLESTAR_POINTS = 5000;          // Points for destroying the battlestar
+const BATTLESTAR_INVULNERABILITY_TIME = 180; // 3 seconds invulnerable after spawn
+const BATTLESTAR_EXPLOSION_PARTICLES = 50; // Number of explosion particles
+const BATTLESTAR_EXPLOSION_DURATION = 120; // Duration of explosion animation
 
 /**
  * Input state tracking
@@ -492,6 +535,10 @@ window.addEventListener('load', function() {
     init();
 });
 
+// Add at the top with other game variables
+let lastFrameTime = 0;
+let deltaTime = 0;
+
 /**
  * Main game loop
  * Orchestrates the game's core update and render cycle:
@@ -500,7 +547,15 @@ window.addEventListener('load', function() {
  * - Renders appropriate screen (welcome, game, or game over)
  * - Handles pause state and overlay systems
  */
-function gameLoop() {
+function gameLoop(timestamp) {
+    // Calculate delta time (in seconds)
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    deltaTime = (timestamp - lastFrameTime) / 1000; // Convert to seconds
+    lastFrameTime = timestamp;
+    
+    // Cap delta time to prevent huge jumps if the game pauses/lags
+    deltaTime = Math.min(deltaTime, 0.1);
+    
     // Increment frame counter for animations
     frameCount++;
     
@@ -1254,6 +1309,14 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
+    // Spawn battlestar with 'B' key (for testing)
+    if ((e.key === 'b' || e.key === 'B') && gameStarted && !gamePaused) {
+        if (!battlestar) {
+            createBattlestar();
+        }
+        return;
+    }
+
     // If release notes are showing, only handle scrolling
     if (showingReleaseNotes) {
         if (e.key === 'ArrowUp') {
@@ -1636,9 +1699,11 @@ function createAsteroid(x, y, size) {
         vert: Math.floor(Math.random() * (ASTEROID_VERT + 1) + ASTEROID_VERT / 2),
         offset: [],
         velocity: {
+            // Velocity will be multiplied by deltaTime in updateAsteroids
             x: Math.random() * currentSpeed * 2 - currentSpeed,
             y: Math.random() * currentSpeed * 2 - currentSpeed
         },
+        // Rotation will be multiplied by deltaTime in updateAsteroids
         rotationSpeed: (Math.random() - 0.5) * 0.02 * (1 + (level - 1) * 0.1) * (1 + sizeSpeedMultiplier) // Smaller asteroids rotate faster too
     };
     
@@ -1701,10 +1766,70 @@ function updateGame() {
     updateThrustParticles();
     updateBullets();
     updateAsteroids();
+    updateAliens();
+    updateAlienBullets();
+    updateAlienDebris();
+    updateBattlestar();
+    updateBattlestarBullets();
+    updateBattlestarDebris();
     checkCollisions();
     
     // Check for level completion and progression
     if (asteroids.length === 0) {
+        // Award level completion bonus with increasing value for higher levels
+        const levelBonus = 1000 * Math.pow(2, level - 1); // 1000 for level 1, 2000 for level 2, 4000 for level 3, etc.
+        score += levelBonus;
+        
+        // Create a centered, large score popup for the level bonus
+        createScorePopup(canvas.width / 2, canvas.height / 2, levelBonus, true);
+        
+        // Create additional surrounding bonus popups for visual impact
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const distance = 100;
+            const x = canvas.width / 2 + Math.cos(angle) * distance;
+            const y = canvas.height / 2 + Math.sin(angle) * distance;
+            createScorePopup(x, y, levelBonus, true);
+        }
+        
+        // Add special visual effect for level completion
+        for (let i = 0; i < 50; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 50 + Math.random() * 150;
+            const speed = 1 + Math.random() * 3;
+            
+            battlestarDebris.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 2 + Math.random() * 4,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.4,
+                lifetime: 60 + Math.random() * 60,
+                color: Math.random() < 0.3 ? '#FFFFFF' : (Math.random() < 0.6 ? '#00FF00' : '#FFFF00'),
+                type: Math.random() < 0.6 ? 'circle' : 'line'
+            });
+        }
+        
+        // Add a shockwave effect
+        battlestarDebris.push({
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 1,
+            maxRadius: 300,
+            lifetime: 60,
+            type: 'shockwave',
+            color: '#00FF00' // Green for level completion
+        });
+        
+        // Play celebratory sounds
+        playSound('bangLarge');
+        setTimeout(() => playSound('bangMedium'), 200);
+        
+        addLogMessage(`Level ${level} complete! Bonus: ${levelBonus} points!`);
+        
+        // Advance to next level
         level++;
         
         // Announce new level
@@ -1732,8 +1857,8 @@ function updateGame() {
 function updateShip() {
     // Handle spawn animation if active
     if (ship.spawning) {
-        // Update spawn timer
-        ship.spawnTime--;
+        // Update spawn timer using delta time
+        ship.spawnTime -= 60 * deltaTime;
         
         // Calculate animation progress (0 to 1)
         const progress = 1 - (ship.spawnTime / 60);
@@ -1764,8 +1889,8 @@ function updateShip() {
     
     // Handle explosion state if active
     if (ship.exploding) {
-        ship.explodeTime--;
-        if (ship.explodeTime === 0) {
+        ship.explodeTime -= 60 * deltaTime;
+        if (ship.explodeTime <= 0) {
             respawnShipSafely();
         }
         return;
@@ -1773,32 +1898,33 @@ function updateShip() {
     
     // Update invulnerability timer
     if (ship.invulnerable) {
-        ship.invulnerableTime--;
+        ship.invulnerableTime -= 60 * deltaTime;
         if (ship.invulnerableTime <= 0) {
             ship.invulnerable = false;
         }
     }
     
     // Update ship's angular position based on rotation velocity
-    ship.angle += ship.rotation;
+    // Multiply by deltaTime for frame-rate independent rotation
+    ship.angle += ship.rotation * 60 * deltaTime;
     
-    // Apply thrust using a vector-based physics model:
-    // - Thrust is decomposed into x and y components using trigonometry
-    // - Y component is negative because canvas coordinates increase downward
-    // - Continuous thrust builds up velocity over time, creating momentum
+    // Apply thrust using a vector-based physics model with delta time scaling
     if (ship.thrusting) {
-        ship.thrust.x += SHIP_THRUST * Math.cos(ship.angle);
-        ship.thrust.y -= SHIP_THRUST * Math.sin(ship.angle);
+        ship.thrust.x += SHIP_THRUST * Math.cos(ship.angle) * 60 * deltaTime;
+        ship.thrust.y -= SHIP_THRUST * Math.sin(ship.angle) * 60 * deltaTime;
     } else {
         // Apply exponential decay friction to gradually slow the ship
         // This creates a smooth deceleration effect while maintaining momentum
-        ship.thrust.x *= FRICTION;
-        ship.thrust.y *= FRICTION;
+        // Use a time-based friction factor instead of a fixed per-frame value
+        const frictionFactor = Math.pow(FRICTION, 60 * deltaTime);
+        ship.thrust.x *= frictionFactor;
+        ship.thrust.y *= frictionFactor;
     }
     
     // Update position based on current velocity (thrust)
-    ship.x += ship.thrust.x;
-    ship.y += ship.thrust.y;
+    // Multiply by deltaTime for frame-rate independent movement
+    ship.x += ship.thrust.x * 60 * deltaTime;
+    ship.y += ship.thrust.y * 60 * deltaTime;
     
     // Handle screen wrapping to create infinite space effect
     handleEdgeOfScreen(ship);
@@ -1940,6 +2066,7 @@ function fireBullet() {
         const bulletY = ship.y - Math.sin(angle) * ship.radius;
         
         // Create bullet with inherited momentum
+        // Note: No need to divide by 60 here since updateBullets will multiply by deltaTime
         bullets.push({
             x: bulletX,
             y: bulletY,
@@ -1957,9 +2084,9 @@ function updateBullets() {
     for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
         
-        // Update bullet position
-        bullet.x += bullet.xv;
-        bullet.y += bullet.yv;
+        // Update bullet position with deltaTime for consistent speed
+        bullet.x += bullet.xv * 60 * deltaTime;
+        bullet.y += bullet.yv * 60 * deltaTime;
         
         // Wrap bullets around screen edges
         if (bullet.x < 0) bullet.x = canvas.width;
@@ -1968,7 +2095,7 @@ function updateBullets() {
         if (bullet.y > canvas.height) bullet.y = 0;
         
         // Check for bullet lifetime
-        bullet.lifetime--;
+        bullet.lifetime -= 60 * deltaTime;
         if (bullet.lifetime <= 0) {
             bullets.splice(i, 1);
             continue;
@@ -2010,12 +2137,12 @@ function updateBullets() {
 // Update asteroids position
 function updateAsteroids() {
     for (let i = 0; i < asteroids.length; i++) {
-        // Move asteroid
-        asteroids[i].x += asteroids[i].velocity.x;
-        asteroids[i].y += asteroids[i].velocity.y;
+        // Move asteroid with deltaTime for consistent speed
+        asteroids[i].x += asteroids[i].velocity.x * 60 * deltaTime;
+        asteroids[i].y += asteroids[i].velocity.y * 60 * deltaTime;
         
-        // Rotate asteroid (now with rotation speed)
-        asteroids[i].angle += asteroids[i].rotationSpeed;
+        // Rotate asteroid with deltaTime for consistent rotation
+        asteroids[i].angle += asteroids[i].rotationSpeed * 60 * deltaTime;
         
         // Handle edge of screen (wrap around)
         handleEdgeOfScreen(asteroids[i]);
@@ -2093,6 +2220,82 @@ function checkCollisions() {
                     // Break out of asteroid loop since alien is destroyed
                     break;
                 }
+            }
+        }
+    }
+    
+    // Check ship collisions with battlestar
+    if (ship && !ship.exploding && !ship.invulnerable && battlestar && !battlestar.invulnerable && !battlestar.dying) {
+        // Use rectangular collision detection for the battlestar
+        const shipDistX = Math.abs(ship.x - battlestar.x);
+        const shipDistY = Math.abs(ship.y - battlestar.y);
+        
+        if (shipDistX < (battlestar.width / 2 + ship.radius) && 
+            shipDistY < (battlestar.height / 2 + ship.radius)) {
+            // Ship hit battlestar
+            destroyShip();
+        }
+    }
+    
+    // Check bullet collisions with battlestar
+    if (battlestar && !battlestar.invulnerable && !battlestar.dying) {
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const bullet = bullets[i];
+            
+            // Use rectangular collision detection
+            const bulletDistX = Math.abs(bullet.x - battlestar.x);
+            const bulletDistY = Math.abs(bullet.y - battlestar.y);
+            
+            if (bulletDistX < battlestar.width / 2 && bulletDistY < battlestar.height / 2) {
+                // Calculate hit angle for directional damage effect
+                const hitAngle = Math.atan2(bullet.y - battlestar.y, bullet.x - battlestar.x);
+                
+                // Remove bullet
+                bullets.splice(i, 1);
+                
+                // Damage battlestar
+                damageBattlestar(1, hitAngle);
+            }
+        }
+    }
+    
+    // Check asteroid collisions with battlestar
+    if (battlestar && !battlestar.dying) {
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+            const asteroid = asteroids[i];
+            
+            // Use rectangular collision detection with radius adjustment
+            const asteroidDistX = Math.abs(asteroid.x - battlestar.x);
+            const asteroidDistY = Math.abs(asteroid.y - battlestar.y);
+            
+            if (asteroidDistX < (battlestar.width / 2 + asteroid.radius) && 
+                asteroidDistY < (battlestar.height / 2 + asteroid.radius)) {
+                
+                // Calculate collision angle for bouncing
+                const collisionAngle = Math.atan2(asteroid.y - battlestar.y, asteroid.x - battlestar.x);
+                
+                // Bounce the asteroid away
+                const bounceSpeed = Math.sqrt(
+                    asteroid.velocity.x * asteroid.velocity.x + 
+                    asteroid.velocity.y * asteroid.velocity.y
+                );
+                
+                asteroid.velocity.x = Math.cos(collisionAngle) * bounceSpeed;
+                asteroid.velocity.y = Math.sin(collisionAngle) * bounceSpeed;
+                
+                // Move asteroid outside of collision zone
+                asteroid.x = battlestar.x + Math.cos(collisionAngle) * (battlestar.width / 2 + asteroid.radius + 5);
+                asteroid.y = battlestar.y + Math.sin(collisionAngle) * (battlestar.height / 2 + asteroid.radius + 5);
+                
+                // Create bounce effect
+                createCollisionEffect(
+                    (asteroid.x + battlestar.x) / 2,
+                    (asteroid.y + battlestar.y) / 2,
+                    collisionAngle
+                );
+                
+                // Play sound
+                playSound('bangSmall');
             }
         }
     }
@@ -2285,12 +2488,12 @@ function updateShipDebris() {
     for (let i = shipDebris.length - 1; i >= 0; i--) {
         const debris = shipDebris[i];
         
-        // Move debris
-        debris.centerX += debris.velocity.x;
-        debris.centerY += debris.velocity.y;
+        // Move debris with deltaTime for consistent speed
+        debris.centerX += debris.velocity.x * 60 * deltaTime;
+        debris.centerY += debris.velocity.y * 60 * deltaTime;
         
-        // Rotate debris
-        debris.angle += debris.rotationSpeed;
+        // Rotate debris with deltaTime for consistent rotation
+        debris.angle += debris.rotationSpeed * 60 * deltaTime;
         
         // Handle edge of screen (wrap around)
         if (debris.centerX < 0) {
@@ -2305,8 +2508,8 @@ function updateShipDebris() {
             debris.centerY = 0;
         }
         
-        // Reduce lifetime
-        debris.lifetime--;
+        // Reduce lifetime with deltaTime
+        debris.lifetime -= 60 * deltaTime;
         
         // Remove dead debris
         if (debris.lifetime <= 0) {
@@ -2316,15 +2519,28 @@ function updateShipDebris() {
 }
 
 // Destroy an asteroid and potentially create smaller ones
-function destroyAsteroid(index) {
+function destroyAsteroid(index, collisionAngle = null) {
     const asteroid = asteroids[index];
     // Score increases with level
     const levelBonus = Math.floor((level - 1) * 0.5 * SCORE_MULTIPLIER); // 50% more points per level
     const points = (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
+    
+    // Add score and create score popup - explicit false for isLevelBonus
     score += points;
     
-    // Create score popup
-    createScorePopup(asteroid.x, asteroid.y, points);
+    // Create a simple, guaranteed upright score popup
+    scorePopups.push({
+        x: asteroid.x,
+        y: asteroid.y,
+        points: points,
+        lifetime: SCORE_POPUP_LIFETIME,
+        scale: 0.7, // Start slightly smaller and grow to 1.0
+        opacity: 1,
+        rotation: 0, // Force zero rotation
+        bouncePhase: 0, // No bounce
+        isLevelBonus: false,
+        color: null
+    });
     
     // Play sound based on asteroid size
     if (asteroid.size === 3) {
@@ -2367,6 +2583,16 @@ function drawGame() {
     } else {
         drawShip();
     }
+    
+    // Draw battlestar and its related effects
+    drawBattlestarDebris();
+    drawBattlestar();
+    drawBattlestarBullets();
+    
+    // Draw alien ships and their effects
+    drawAlienDebris();
+    drawAliens();
+    drawAlienBullets();
     
     // Draw asteroids
     drawAsteroids();
@@ -3053,8 +3279,8 @@ function updateAliens() {
     
     // Timer-based spawn system scales with game progression
     if (alienSpawnTimer > 0) {
-        alienSpawnTimer--;
-        if (alienSpawnTimer === 0 && aliens.length < ALIEN_MAX_COUNT) {
+        alienSpawnTimer -= 60 * deltaTime;
+        if (alienSpawnTimer <= 0 && aliens.length < ALIEN_MAX_COUNT) {
             createAlien();
             
             // Calculate spawn interval for next alien
@@ -3072,13 +3298,13 @@ function updateAliens() {
         
         // Update spawn animation
         if (alien.spawnTime > 0) {
-            alien.spawnTime--;
+            alien.spawnTime -= 60 * deltaTime;
             alien.scale = 1 - (alien.spawnTime / ALIEN_SPAWN_EFFECT_DURATION);
         }
         
         // Update invulnerability
         if (alien.invulnerable) {
-            alien.invulnerableTime--;
+            alien.invulnerableTime -= 60 * deltaTime;
             if (alien.invulnerableTime <= 0) {
                 alien.invulnerable = false;
                 // Add a flash effect when invulnerability ends
@@ -3094,13 +3320,13 @@ function updateAliens() {
             }
         }
         
-        // Move alien and handle screen wrapping
-        alien.x += alien.dx;
-        alien.y += alien.dy;
+        // Move alien with deltaTime for consistent speed
+        alien.x += alien.dx * 60 * deltaTime;
+        alien.y += alien.dy * 60 * deltaTime;
         handleEdgeOfScreen(alien);
         
         // Update direction change timer for unpredictable movement
-        alien.directionTimer++;
+        alien.directionTimer += 60 * deltaTime;
         if (alien.directionTimer >= ALIEN_CHANGE_DIRECTION_RATE) {
             alien.directionTimer = 0;
             // Choose new random direction and thrust state
@@ -3115,21 +3341,22 @@ function updateAliens() {
         } else {
             alien.rotation = 0;
         }
-        alien.angle += alien.rotation;
+        alien.angle += alien.rotation * 60 * deltaTime;
         
         // Apply thrust with the same physics model as the player ship
         if (alien.thrusting) {
-            alien.dx += Math.cos(alien.angle) * ALIEN_THRUST;
-            alien.dy += Math.sin(alien.angle) * ALIEN_THRUST;
+            alien.dx += Math.cos(alien.angle) * ALIEN_THRUST * 60 * deltaTime;
+            alien.dy += Math.sin(alien.angle) * ALIEN_THRUST * 60 * deltaTime;
         }
         
         // Apply friction to create smooth movement
-        alien.dx *= ALIEN_FRICTION;
-        alien.dy *= ALIEN_FRICTION;
+        const frictionFactor = Math.pow(ALIEN_FRICTION, 60 * deltaTime);
+        alien.dx *= frictionFactor;
+        alien.dy *= frictionFactor;
         
         // Implement intelligent shooting behavior
         if (!alien.invulnerable && alien.active && ship && !ship.exploding && alienBullets.length < ALIEN_MAX_BULLETS) {
-            alien.fireTimer++;
+            alien.fireTimer += 60 * deltaTime;
             // Randomize fire rate for unpredictability
             const fireRate = ALIEN_FIRE_RATE_MIN + Math.random() * (ALIEN_FIRE_RATE_MAX - ALIEN_FIRE_RATE_MIN);
             
@@ -3333,12 +3560,12 @@ function updateAlienBullets() {
     for (let i = alienBullets.length - 1; i >= 0; i--) {
         const bullet = alienBullets[i];
         
-        // Move bullet
-        bullet.x += bullet.dx;
-        bullet.y += bullet.dy;
+        // Move bullet with deltaTime for consistent speed
+        bullet.x += bullet.dx * 60 * deltaTime;
+        bullet.y += bullet.dy * 60 * deltaTime;
 
-        // Update pulse animation
-        bullet.pulsePhase = (bullet.pulsePhase + ALIEN_BULLET_PULSE_SPEED) % (Math.PI * 2);
+        // Update pulse animation with deltaTime
+        bullet.pulsePhase = (bullet.pulsePhase + ALIEN_BULLET_PULSE_SPEED * 60 * deltaTime) % (Math.PI * 2);
         bullet.size = ALIEN_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
 
         // Remove if off screen
@@ -3513,7 +3740,19 @@ function destroyAlien(alien, wasShot = true, collisionAngle = null) {
     // Add score only if shot (not from collision)
     if (wasShot) {
         score += ALIEN_POINTS;
-        createScorePopup(alien.x, alien.y, ALIEN_POINTS);
+        // Create a score popup directly for guaranteed correct display
+        scorePopups.push({
+            x: alien.x,
+            y: alien.y,
+            points: ALIEN_POINTS,
+            lifetime: SCORE_POPUP_LIFETIME,
+            scale: 0.7, // Start slightly smaller and grow to 1.0
+            opacity: 1,
+            rotation: 0, // Force zero rotation
+            bouncePhase: 0, // No bounce 
+            isLevelBonus: false,
+            color: null
+        });
     }
     
     // Enhanced explosion sound
@@ -3661,7 +3900,7 @@ function destroyAsteroid(index, collisionAngle = null) {
     
     // Add score and create score popup
     score += points;
-    createScorePopup(asteroid.x, asteroid.y, points);
+    createScorePopup(asteroid.x, asteroid.y, points, true);
     
     // Play sound based on asteroid size
     if (asteroid.size === 3) {
@@ -3970,4 +4209,794 @@ function drawLevelAnnouncement() {
 let highScoreSubmitCooldown = 0;
 
 // Remove the transition state variable since we're using a simpler approach
-  
+
+// Create a battlestar boss ship
+function createBattlestar() {
+    // Randomly choose which side to spawn from (left or right)
+    const spawnSide = Math.random() < 0.5 ? 'left' : 'right';
+    
+    // Set position based on spawn side - now partially on screen
+    const x = spawnSide === 'left' ? BATTLESTAR_WIDTH * 0.25 : canvas.width - BATTLESTAR_WIDTH * 0.25;
+    const y = canvas.height * (0.25 + Math.random() * 0.5); // Spawn in middle 50% of screen height
+    
+    // Direction depends on spawn side
+    const direction = spawnSide === 'left' ? 1 : -1;
+    
+    // Create spawn effects - shockwave
+    battlestarDebris.push({
+        x: x,
+        y: y,
+        radius: 1,
+        maxRadius: BATTLESTAR_WIDTH * 2,
+        lifetime: 60,
+        type: 'shockwave',
+        color: '#FF0000'
+    });
+    
+    // Add a second inner shockwave with different color
+    battlestarDebris.push({
+        x: x,
+        y: y,
+        radius: 1,
+        maxRadius: BATTLESTAR_WIDTH,
+        lifetime: 75, // Slightly longer to create layered effect
+        type: 'shockwave',
+        color: '#FFFF00'
+    });
+    
+    // Create more dramatic spawn particles
+    for (let i = 0; i < 50; i++) { // Increased from 30 to 50
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * BATTLESTAR_WIDTH * 1.2; // Increased range
+        
+        battlestarDebris.push({
+            x: x + Math.cos(angle) * distance,
+            y: y + Math.sin(angle) * distance,
+            vx: Math.cos(angle) * (Math.random() * 3), // Faster particles
+            vy: Math.sin(angle) * (Math.random() * 3),
+            size: 2 + Math.random() * 4, // Larger particles
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.3, // Faster rotation
+            lifetime: 60 + Math.random() * 60, // Longer lifetimes
+            color: Math.random() < 0.3 ? '#FFFFFF' : (Math.random() < 0.6 ? '#FF0000' : '#FFFF00'), // More color variety
+            type: Math.random() < 0.6 ? 'circle' : 'line'
+        });
+    }
+    
+    // Create cannons at spread-out positions
+    const cannons = [];
+    for (let i = 0; i < BATTLESTAR_CANNON_COUNT; i++) {
+        // Position cannons along the battlestar's length
+        const xOffset = (i / (BATTLESTAR_CANNON_COUNT - 1) - 0.5) * BATTLESTAR_WIDTH * 0.8;
+        // Alternate cannons above and below centerline
+        const yOffset = (i % 2 === 0 ? -1 : 1) * BATTLESTAR_HEIGHT * 0.3;
+        
+        cannons.push({
+            x: xOffset,
+            y: yOffset,
+            fireTimer: Math.floor(Math.random() * BATTLESTAR_FIRE_RATE), // Stagger firing
+            damaged: false,
+            rotation: 0 // Add rotation property for cannon
+        });
+    }
+    
+    // Create the battlestar object with both x and y velocity components
+    battlestar = {
+        x: x,
+        y: y,
+        dx: direction * BATTLESTAR_SPEED,
+        dy: 0, // Initialize vertical velocity to zero
+        width: BATTLESTAR_WIDTH,
+        height: BATTLESTAR_HEIGHT,
+        health: BATTLESTAR_MAX_HEALTH,
+        maxHealth: BATTLESTAR_MAX_HEALTH,
+        invulnerable: true,
+        invulnerableTime: BATTLESTAR_INVULNERABILITY_TIME,
+        damageState: 0, // 0 = least damaged, 2 = most damaged
+        cannons: cannons,
+        spawnTime: 120, // Increased from 60 to 120 for longer spawn animation
+        scale: 0, // Start small for spawn animation
+        dying: false, // Death animation flag
+        deathTimer: 0, // For coordinating death animation
+        explosionPhase: 0 // For sequential explosions during death
+    };
+    
+    // Play dramatic sound sequence
+    playSound('bangLarge');
+    
+    // Schedule additional sounds for layered effect
+    setTimeout(() => {
+        playSound('bangMedium');
+    }, 250);
+    
+    setTimeout(() => {
+        playSound('explode');
+    }, 500);
+    
+    addLogMessage('WARNING! Battlestar detected!');
+}
+
+// Update battlestar position, state, and behavior
+function updateBattlestar() {
+    if (!battlestar) return;
+    
+    // Skip updates if dying and handle death animation
+    if (battlestar.dying) {
+        battlestar.deathTimer += 60 * deltaTime;
+        
+        // Create sequential explosions during death animation
+        if (battlestar.deathTimer % 10 < 60 * deltaTime && battlestar.explosionPhase < 6) {
+            battlestar.explosionPhase++;
+            
+            // Create explosion at random position on the battlestar
+            const offsetX = (Math.random() - 0.5) * battlestar.width * 0.8;
+            const offsetY = (Math.random() - 0.5) * battlestar.height * 0.8;
+            
+            // Add explosion debris
+            for (let i = 0; i < 20; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3;
+                
+                battlestarDebris.push({
+                    x: battlestar.x + offsetX,
+                    y: battlestar.y + offsetY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 2 + Math.random() * 4,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.2,
+                    lifetime: 30 + Math.random() * 60,
+                    color: Math.random() < 0.3 ? '#FFFFFF' : (Math.random() < 0.5 ? '#FF0000' : '#FFFF00'),
+                    type: Math.random() < 0.7 ? 'circle' : 'line'
+                });
+            }
+            
+            // Add shockwave effect
+            battlestarDebris.push({
+                x: battlestar.x + offsetX,
+                y: battlestar.y + offsetY,
+                radius: 1,
+                maxRadius: 30 + Math.random() * 20,
+                lifetime: 30,
+                type: 'shockwave',
+                color: Math.random() < 0.5 ? '#FF0000' : '#FFFF00'
+            });
+            
+            // Play explosion sound
+            playSound('bangLarge');
+        }
+        
+        // Final explosion when death animation completes
+        if (battlestar.deathTimer >= BATTLESTAR_EXPLOSION_DURATION) {
+            // Create massive explosion at battlestar's position
+            for (let i = 0; i < BATTLESTAR_EXPLOSION_PARTICLES; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * battlestar.width * 0.5;
+                const speed = 2 + Math.random() * 5;
+                
+                battlestarDebris.push({
+                    x: battlestar.x + Math.cos(angle) * distance,
+                    y: battlestar.y + Math.sin(angle) * distance,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 3 + Math.random() * 5,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.4,
+                    lifetime: 60 + Math.random() * 120,
+                    color: Math.random() < 0.3 ? '#FFFFFF' : (Math.random() < 0.5 ? '#FF0000' : '#FFFF00'),
+                    type: Math.random() < 0.5 ? 'circle' : 'line'
+                });
+            }
+            
+            // Add a final shockwave
+            battlestarDebris.push({
+                x: battlestar.x,
+                y: battlestar.y,
+                radius: 1,
+                maxRadius: battlestar.width * 2,
+                lifetime: 60,
+                type: 'shockwave',
+                color: '#FFFFFF'
+            });
+            
+            // Add score
+            score += BATTLESTAR_POINTS;
+            // Create a score popup directly for guaranteed correct display
+            scorePopups.push({
+                x: battlestar.x,
+                y: battlestar.y,
+                points: BATTLESTAR_POINTS,
+                lifetime: SCORE_POPUP_LIFETIME,
+                scale: 0.5, // Start at half size to avoid huge initial appearance
+                opacity: 1,
+                rotation: 0, // Force zero rotation
+                bouncePhase: 0, // No bounce
+                isLevelBonus: false,
+                color: null
+            });
+            
+            // Play explosion sound
+            playSound('explode');
+            
+            // Remove battlestar
+            battlestar = null;
+            addLogMessage('Battlestar destroyed! Earned ' + BATTLESTAR_POINTS + ' points!');
+        }
+        
+        return;
+    }
+    
+    // Update spawn animation
+    if (battlestar.spawnTime > 0) {
+        battlestar.spawnTime -= 60 * deltaTime;
+        battlestar.scale = 1 - battlestar.spawnTime / 120; // Grow from 0 to 1 over 120 frames
+        
+        if (battlestar.spawnTime <= 0) {
+            battlestar.scale = 1;
+            battlestar.invulnerable = false;
+            addLogMessage('Battlestar fully operational. Use caution!');
+        }
+        
+        return; // Skip movement during spawn animation
+    }
+    
+    // Ensure the battlestar has vertical velocity property
+    if (battlestar.dy === undefined) {
+        battlestar.dy = 0;
+    }
+    
+    // Update battlestar position using deltaTime for both x and y movement
+    battlestar.x += battlestar.dx * 60 * deltaTime;
+    battlestar.y += battlestar.dy * 60 * deltaTime;
+    
+    // Apply gentle dampening to vertical movement to prevent perpetual oscillation
+    battlestar.dy *= Math.pow(0.95, 60 * deltaTime);
+    
+    // Handle screen edges with improved bounce logic
+    const halfWidth = battlestar.width / 2;
+    const halfHeight = battlestar.height / 2;
+    
+    // Handle horizontal bouncing - only bounce at screen edges
+    if ((battlestar.x < halfWidth && battlestar.dx < 0) || 
+        (battlestar.x > canvas.width - halfWidth && battlestar.dx > 0)) {
+        // Reverse direction and add gradual vertical movement for variation
+        battlestar.dx *= -1;
+        
+        // Add a gentle vertical impulse instead of an immediate position change
+        // This makes the movement look smoother and more natural
+        battlestar.dy += (Math.random() - 0.5) * 2; // Smaller impulse for smoother movement
+        
+        // Play a sound for the bounce
+        playSound('bangSmall');
+        
+        // Add a small visual effect
+        battlestarDebris.push({
+            x: battlestar.x + (battlestar.dx > 0 ? -halfWidth : halfWidth),
+            y: battlestar.y,
+            radius: 1,
+            maxRadius: 30,
+            lifetime: 30,
+            type: 'shockwave',
+            color: '#FFFFFF'
+        });
+    }
+    
+    // Keep within vertical bounds with soft bouncing
+    if (battlestar.y < halfHeight) {
+        battlestar.y = halfHeight;
+        battlestar.dy = Math.abs(battlestar.dy) * 0.8; // Bounce back with dampening
+    } else if (battlestar.y > canvas.height - halfHeight) {
+        battlestar.y = canvas.height - halfHeight;
+        battlestar.dy = -Math.abs(battlestar.dy) * 0.8; // Bounce back with dampening
+    }
+    
+    // Update cannon fire logic
+    if (ship && !ship.exploding) {
+        battlestar.cannons.forEach(cannon => {
+            if (!cannon.damaged) {
+                // Update fire timer
+                cannon.fireTimer += 60 * deltaTime;
+                
+                // Calculate world position of cannon
+                const cannonX = battlestar.x + cannon.x;
+                const cannonY = battlestar.y + cannon.y;
+                
+                // Calculate direction to player with advanced targeting
+                const dx = ship.x - cannonX;
+                const dy = ship.y - cannonY;
+                let angle = Math.atan2(dy, dx);
+                
+                // Add slight spread for easier gameplay
+                angle += (Math.random() - 0.5) * 0.2;
+                
+                // Update cannon rotation to smoothly face the target
+                const rotationSpeed = 0.1;
+                // Normalize angle difference to [-PI, PI]
+                let angleDiff = angle - cannon.rotation;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                // Apply smooth rotation
+                cannon.rotation += angleDiff * rotationSpeed;
+                
+                // Fire when ready
+                if (cannon.fireTimer >= BATTLESTAR_FIRE_RATE) {
+                    cannon.fireTimer = 0;
+                    
+                    // Create bullet - use cannon's current rotation
+                    battlestarBullets.push({
+                        x: cannonX,
+                        y: cannonY,
+                        dx: Math.cos(cannon.rotation) * BATTLESTAR_BULLET_SPEED,
+                        dy: Math.sin(cannon.rotation) * BATTLESTAR_BULLET_SPEED,
+                        active: true,
+                        size: 3 + Math.random() * 2,
+                        pulsePhase: Math.random() * Math.PI * 2
+                    });
+                    
+                    // Play fire sound with pitch variation
+                    playSound('fire');
+                }
+            }
+        });
+    }
+}
+
+// Update battlestar bullets
+function updateBattlestarBullets() {
+    // Remove inactive bullets first
+    battlestarBullets = battlestarBullets.filter(bullet => bullet.active);
+
+    // Update all existing bullets
+    for (let i = battlestarBullets.length - 1; i >= 0; i--) {
+        const bullet = battlestarBullets[i];
+        
+        // Move bullet with deltaTime for consistent speed
+        bullet.x += bullet.dx * 60 * deltaTime;
+        bullet.y += bullet.dy * 60 * deltaTime;
+
+        // Update pulse animation with deltaTime
+        bullet.pulsePhase = (bullet.pulsePhase + 0.2 * 60 * deltaTime) % (Math.PI * 2);
+        bullet.size = BATTLESTAR_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
+
+        // Remove if off screen
+        if (bullet.x < 0 || bullet.x > canvas.width || 
+            bullet.y < 0 || bullet.y > canvas.height) {
+            bullet.active = false;
+            continue;
+        }
+
+        // Check collision with asteroids
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+            if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
+                bullet.active = false;
+                // Don't destroy the asteroid - battlestar bullets bounce off
+                
+                // Add ricochet effect
+                battlestarDebris.push({
+                    x: bullet.x,
+                    y: bullet.y,
+                    radius: 1,
+                    maxRadius: 10,
+                    lifetime: 15,
+                    type: 'shockwave',
+                    color: '#FFA500'
+                });
+                
+                // Play ricochet sound
+                playSound('bangSmall');
+                break;
+            }
+        }
+
+        // Check collision with player
+        if (ship && !ship.exploding && !ship.invulnerable) {
+            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < SHIP_SIZE) {
+                bullet.active = false;
+                destroyShip();
+            }
+        }
+    }
+}
+
+// Update battlestar debris
+function updateBattlestarDebris() {
+    for (let i = battlestarDebris.length - 1; i >= 0; i--) {
+        const debris = battlestarDebris[i];
+        
+        if (debris.type === 'shockwave') {
+            // Update shockwave with deltaTime for consistent expansion speed
+            const expansionRate = 0.2 * 60 * deltaTime;
+            debris.radius += (debris.maxRadius - debris.radius) * expansionRate;
+            debris.lifetime -= 60 * deltaTime;
+            
+            if (debris.lifetime <= 0) {
+                battlestarDebris.splice(i, 1);
+            }
+        } else {
+            // Update normal debris with deltaTime
+            debris.x += debris.vx * 60 * deltaTime;
+            debris.y += debris.vy * 60 * deltaTime;
+            debris.rotation += debris.rotationSpeed * 60 * deltaTime;
+            debris.lifetime -= 60 * deltaTime;
+            
+            // Handle screen wrapping
+            handleEdgeOfScreen(debris);
+            
+            if (debris.lifetime <= 0) {
+                battlestarDebris.splice(i, 1);
+            }
+        }
+    }
+}
+
+// Draw battlestar
+function drawBattlestar() {
+    if (!battlestar) return;
+    
+    ctx.save();
+    
+    // Apply spawn scaling effect
+    if (battlestar.spawnTime > 0) {
+        ctx.translate(battlestar.x, battlestar.y);
+        ctx.scale(battlestar.scale, battlestar.scale);
+        ctx.translate(-battlestar.x, -battlestar.y);
+    }
+    
+    // Translate to battlestar position
+    ctx.translate(battlestar.x, battlestar.y);
+    
+    // Flash effect for invulnerability
+    if (battlestar.invulnerable) {
+        ctx.strokeStyle = `hsl(${frameCount * 10 % 360}, 100%, 50%)`;
+        ctx.globalAlpha = 0.5 + Math.sin(frameCount * 0.2) * 0.5;
+    } else {
+        ctx.strokeStyle = 'white';
+        
+        // Add damage-based color
+        if (battlestar.damageState > 0) {
+            ctx.strokeStyle = `rgb(255, ${255 - battlestar.damageState * 60}, ${255 - battlestar.damageState * 80})`;
+        }
+    }
+    
+    // Apply dying effect (shake)
+    if (battlestar.dying) {
+        const shakeX = (Math.random() - 0.5) * 5;
+        const shakeY = (Math.random() - 0.5) * 5;
+        ctx.translate(shakeX, shakeY);
+    }
+    
+    ctx.lineWidth = 2;
+    
+    // Draw battlestar hull
+    ctx.beginPath();
+    ctx.moveTo(-battlestar.width/2, -battlestar.height/2);
+    ctx.lineTo(battlestar.width/2, -battlestar.height/2);
+    ctx.lineTo(battlestar.width/2 + 20, 0);
+    ctx.lineTo(battlestar.width/2, battlestar.height/2);
+    ctx.lineTo(-battlestar.width/2, battlestar.height/2);
+    ctx.lineTo(-battlestar.width/2 - 20, 0);
+    ctx.closePath();
+    ctx.stroke();
+    
+    // Draw armor plating
+    const plateCount = 5;
+    const plateWidth = battlestar.width / plateCount;
+    
+    for (let i = 0; i < plateCount; i++) {
+        const plateX = -battlestar.width/2 + i * plateWidth;
+        
+        // Skip some plates for damage effect
+        if (battlestar.damageState > 0 && 
+            ((battlestar.damageState === 1 && i === 1) || 
+             (battlestar.damageState === 2 && (i === 1 || i === 3)) ||
+             (battlestar.damageState === 3 && (i === 1 || i === 2 || i === 4)))) {
+            
+            // Draw damage effect (bent/broken plates)
+            ctx.beginPath();
+            ctx.moveTo(plateX, -battlestar.height/2);
+            ctx.lineTo(plateX + plateWidth * 0.7, -battlestar.height/2);
+            ctx.lineTo(plateX + plateWidth * 0.5, -battlestar.height/4);
+            ctx.lineTo(plateX, -battlestar.height/3);
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Add some damage debris for the worst damage state
+            if (battlestar.damageState === 3 && Math.random() < 0.05) {
+                battlestarDebris.push({
+                    x: battlestar.x + plateX + plateWidth/2,
+                    y: battlestar.y - battlestar.height/4,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    size: 1 + Math.random() * 2,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.2,
+                    lifetime: 20 + Math.random() * 10,
+                    color: '#FF0000',
+                    type: 'circle'
+                });
+            }
+            
+            continue;
+        }
+        
+        // Upper plate
+        ctx.beginPath();
+        ctx.moveTo(plateX, -battlestar.height/2);
+        ctx.lineTo(plateX + plateWidth, -battlestar.height/2);
+        ctx.lineTo(plateX + plateWidth, -battlestar.height/6);
+        ctx.lineTo(plateX, -battlestar.height/6);
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Lower plate
+        ctx.beginPath();
+        ctx.moveTo(plateX, battlestar.height/6);
+        ctx.lineTo(plateX + plateWidth, battlestar.height/6);
+        ctx.lineTo(plateX + plateWidth, battlestar.height/2);
+        ctx.lineTo(plateX, battlestar.height/2);
+        ctx.closePath();
+        ctx.stroke();
+    }
+    
+    // Draw bridge
+    ctx.beginPath();
+    ctx.arc(0, 0, battlestar.height/6, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Draw energy core (changes color based on damage)
+    const coreColor = battlestar.damageState === 0 ? '#00FFFF' : 
+                     (battlestar.damageState === 1 ? '#FFFF00' : 
+                     (battlestar.damageState === 2 ? '#FFA500' : '#FF0000'));
+    
+    ctx.beginPath();
+    ctx.fillStyle = coreColor;
+    ctx.globalAlpha = 0.7 + Math.sin(frameCount * 0.1) * 0.3;
+    ctx.arc(0, 0, battlestar.height/10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    
+    // Draw cannons
+    for (let i = 0; i < battlestar.cannons.length; i++) {
+        const cannon = battlestar.cannons[i];
+        
+        // Skip drawing if cannon is damaged
+        if (cannon.damaged) continue;
+        
+        // Save context for cannon rotation
+        ctx.save();
+        ctx.translate(cannon.x, cannon.y);
+        ctx.rotate(cannon.rotation);
+        
+        // Draw cannon base
+        ctx.beginPath();
+        ctx.moveTo(-7.5, -5);
+        ctx.lineTo(7.5, -5);
+        ctx.lineTo(7.5, 5);
+        ctx.lineTo(-7.5, 5);
+        ctx.closePath();
+        ctx.stroke();
+        
+        // Draw cannon barrel
+        ctx.beginPath();
+        ctx.moveTo(7.5, 0);
+        ctx.lineTo(25, 0);
+        ctx.stroke();
+        
+        // Restore context
+        ctx.restore();
+    }
+    
+    // Draw health bar
+    const healthBarWidth = battlestar.width * 0.8;
+    const healthPercent = battlestar.health / battlestar.maxHealth;
+    
+    ctx.beginPath();
+    ctx.rect(-healthBarWidth/2, -battlestar.height/2 - 20, healthBarWidth, 10);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.fillStyle = battlestar.damageState === 0 ? '#00FF00' : 
+                   (battlestar.damageState === 1 ? '#FFFF00' : 
+                   (battlestar.damageState === 2 ? '#FFA500' : '#FF0000'));
+    ctx.rect(-healthBarWidth/2, -battlestar.height/2 - 20, healthBarWidth * healthPercent, 10);
+    ctx.fill();
+    
+    ctx.restore();
+}
+
+// Draw battlestar bullets
+function drawBattlestarBullets() {
+    ctx.fillStyle = '#FF0000';
+    
+    for (let i = 0; i < battlestarBullets.length; i++) {
+        const bullet = battlestarBullets[i];
+        
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Add glow effect
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
+        ctx.arc(bullet.x, bullet.y, bullet.size * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#FF0000';
+    }
+}
+
+// Draw battlestar debris
+function drawBattlestarDebris() {
+    for (let i = 0; i < battlestarDebris.length; i++) {
+        const debris = battlestarDebris[i];
+        
+        ctx.save();
+        
+        if (debris.type === 'shockwave') {
+            // Draw expanding shockwave
+            const alpha = debris.lifetime / 60; // Fade out based on lifetime
+            ctx.strokeStyle = debris.color || '#FF0000';
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();
+            ctx.arc(debris.x, debris.y, debris.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Draw normal debris
+            ctx.translate(debris.x, debris.y);
+            ctx.rotate(debris.rotation);
+            
+            // Fade out as lifetime decreases
+            ctx.globalAlpha = debris.lifetime / 60;
+            
+            if (debris.type === 'circle') {
+                ctx.fillStyle = debris.color || '#FF0000';
+                ctx.beginPath();
+                ctx.arc(0, 0, debris.size, 0, Math.PI * 2);
+                ctx.fill();
+            } else { // line type
+                ctx.strokeStyle = debris.color || '#FF0000';
+                ctx.beginPath();
+                ctx.moveTo(-debris.size, 0);
+                ctx.lineTo(debris.size, 0);
+                ctx.stroke();
+            }
+        }
+        
+        ctx.restore();
+    }
+}
+
+// Deal damage to the battlestar
+function damageBattlestar(damage = 1, collisionAngle = null) {
+    if (!battlestar || battlestar.invulnerable || battlestar.dying) return;
+    
+    battlestar.health -= damage;
+    
+    // Add impact effect
+    const impactX = battlestar.x + Math.cos(collisionAngle || 0) * battlestar.width/2;
+    const impactY = battlestar.y + Math.sin(collisionAngle || 0) * battlestar.height/2;
+    
+    // Create impact debris
+    for (let i = 0; i < 10; i++) {
+        const angle = (collisionAngle || 0) + (Math.random() - 0.5) * Math.PI;
+        const speed = 1 + Math.random() * 2;
+        
+        battlestarDebris.push({
+            x: impactX,
+            y: impactY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 1 + Math.random() * 3,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: (Math.random() - 0.5) * 0.2,
+            lifetime: 30 + Math.random() * 30,
+            color: Math.random() < 0.5 ? '#FFFF00' : '#FF0000',
+            type: Math.random() < 0.5 ? 'circle' : 'line'
+        });
+    }
+    
+    // Add a shockwave
+    battlestarDebris.push({
+        x: impactX,
+        y: impactY,
+        radius: 1,
+        maxRadius: 20,
+        lifetime: 20,
+        type: 'shockwave',
+        color: '#FFFF00'
+    });
+    
+    // Play hit sound
+    playSound('bangMedium');
+    
+    // Create a score popup for the hit - using direct creation for guaranteed upright display
+    scorePopups.push({
+        x: impactX,
+        y: impactY,
+        points: 100,
+        lifetime: SCORE_POPUP_LIFETIME,
+        scale: 0.7, // Start slightly smaller and grow to 1.0
+        opacity: 1,
+        rotation: 0, // Force zero rotation
+        bouncePhase: 0, // No bounce
+        isLevelBonus: false,
+        color: null
+    });
+    
+    // Add score
+    score += 100;
+    
+    // Check if battlestar is destroyed
+    if (battlestar.health <= 0) {
+        startBattlestarDeathSequence();
+    } else {
+        // Damage a cannon at random if health is below thresholds
+        if (battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[0] || 
+            battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[1] || 
+            battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[2]) {
+            
+            // Find undamaged cannons
+            const undamagedCannons = battlestar.cannons.filter(cannon => !cannon.damaged);
+            
+            if (undamagedCannons.length > 0) {
+                // Damage a random cannon
+                const randomIndex = Math.floor(Math.random() * undamagedCannons.length);
+                undamagedCannons[randomIndex].damaged = true;
+                
+                // Create explosion at cannon position
+                const cannonX = battlestar.x + undamagedCannons[randomIndex].x;
+                const cannonY = battlestar.y + undamagedCannons[randomIndex].y;
+                
+                for (let i = 0; i < 15; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 3;
+                    
+                    battlestarDebris.push({
+                        x: cannonX,
+                        y: cannonY,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: 2 + Math.random() * 3,
+                        rotation: Math.random() * Math.PI * 2,
+                        rotationSpeed: (Math.random() - 0.5) * 0.3,
+                        lifetime: 40 + Math.random() * 20,
+                        color: Math.random() < 0.3 ? '#FFFFFF' : (Math.random() < 0.6 ? '#FFFF00' : '#FF0000'),
+                        type: Math.random() < 0.6 ? 'circle' : 'line'
+                    });
+                }
+                
+                // Add a shockwave
+                battlestarDebris.push({
+                    x: cannonX,
+                    y: cannonY,
+                    radius: 1,
+                    maxRadius: 30,
+                    lifetime: 30,
+                    type: 'shockwave',
+                    color: '#FF0000'
+                });
+                
+                // Play explosion sound
+                playSound('bangLarge');
+                
+                addLogMessage('Battlestar cannon destroyed!');
+            }
+        }
+    }
+}
+
+// Start the battlestar death sequence
+function startBattlestarDeathSequence() {
+    battlestar.dying = true;
+    battlestar.deathTimer = 0;
+    
+    addLogMessage('Battlestar critically damaged!');
+    
+    // Disable all cannons
+    battlestar.cannons.forEach(cannon => {
+        cannon.damaged = true;
+    });
+    
+    // Play alert sound
+    playSound('bangLarge');
+}  
