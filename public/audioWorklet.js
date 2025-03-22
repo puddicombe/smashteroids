@@ -72,10 +72,22 @@ if (typeof AudioWorkletProcessor !== 'undefined') {
               sample = this.amplitude * Math.sin(2 * Math.PI * freqMod * this.phase);
               break;
             case 'fire':
-              // Short decreasing frequency for firing sound
-              const fireFreq = 800 - 400 * Math.min(t / 0.1, 1);
-              sample = this.amplitude * Math.sin(2 * Math.PI * fireFreq * this.phase) * 
-                       Math.max(0, 1 - t / 0.1);
+              // Sci-fi phaser sound
+              const phaserFreq = 1200 - 900 * Math.min(t / 0.2, 1); // Higher starting frequency, longer decay
+              const phaserOsc = Math.sin(2 * Math.PI * phaserFreq * this.phase);
+              const phaserNoise = (Math.random() * 2 - 1) * 0.2; // Add some noise component
+              const modulation = Math.sin(2 * Math.PI * 15 * t); // Add modulation for sci-fi effect
+              sample = this.amplitude * (phaserOsc * (0.7 + 0.3 * modulation) + phaserNoise) * 
+                      Math.max(0, 1 - t / 0.2); // Slightly longer duration
+              break;
+            case 'alienFire':
+              // Alien phaser sound (lower pitch, more oscillation)
+              const alienFreq = 800 - 600 * Math.min(t / 0.3, 1); // Lower pitch, longer decay
+              const alienOsc = Math.sin(2 * Math.PI * alienFreq * this.phase);
+              const alienNoise = (Math.random() * 2 - 1) * 0.3; // More noise component
+              const alienMod = Math.sin(2 * Math.PI * 25 * t); // Faster modulation for alien sound
+              sample = this.amplitude * (alienOsc * (0.6 + 0.4 * alienMod) + alienNoise) * 
+                      Math.max(0, 1 - t / 0.3); // Longer duration for alien weapon
               break;
             case 'thrust':
               // White noise for thrust
@@ -104,6 +116,20 @@ if (typeof AudioWorkletProcessor !== 'undefined') {
               // Small explosion sound
               sample = this.amplitude * Math.sin(2 * Math.PI * 300 * this.phase) * 
                        Math.max(0, 1 - t / 0.2);
+              break;
+            case 'alienSpawn':
+              // Swooshy alien arrival sound
+              const swooshFreq = 300 + 500 * Math.sin(Math.PI * t / this.duration); // Frequency sweep
+              const swooshOsc = Math.sin(2 * Math.PI * swooshFreq * this.phase);
+              const swooshNoise = (Math.random() * 2 - 1) * 0.4; // Add noise component
+              const swooshEnvelope = Math.sin(Math.PI * t / this.duration); // Envelope shape like a wave
+              const swooshWobble = Math.sin(2 * Math.PI * 8 * t); // Slow wobble effect
+              
+              // Mix components for a distinctive swooshing sound
+              sample = this.amplitude * (
+                swooshOsc * (0.6 + 0.4 * swooshWobble) + 
+                swooshNoise * 0.3
+              ) * swooshEnvelope * Math.max(0, 1 - t / 0.8); // Longer duration
               break;
             case 'explode':
               // Ship explosion - more complex sound

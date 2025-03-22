@@ -27,39 +27,67 @@ let scoreAnimationSpeed = 5; // Points per frame
 // Score pop-up system
 let scorePopups = [];
 const SCORE_POPUP_LIFETIME = 60;  // 1 second at 60fps
-const SCORE_POPUP_SPEED = 1.5;    // Pixels per frame - increased for more movement
+const SCORE_POPUP_SPEED = 2.5;    // Pixels per frame - increased for faster movement
 const SCORE_POPUP_FADE_START = 45; // When to start fading (frames remaining)
-const SCORE_POPUP_BOUNCE_AMPLITUDE = 0.3; // Bounce effect amplitude
+const SCORE_POPUP_BOUNCE_AMPLITUDE = 0.3;
+const SCORE_POPUP_OFFSET_RANGE = 30; // Random horizontal offset range
+
+// Define color palettes for different score values
+const SCORE_COLORS = {
+  small: ['#64DFDF', '#56CBF9', '#7B2CBF'], // Small score palette (blues/purples)
+  medium: ['#FF9F1C', '#FFBF69', '#F4A261'], // Medium score palette (oranges)
+  large: ['#F72585', '#B5179E', '#7209B7']   // Large score palette (pinks/purples)
+};
 
 // Create a score popup at the given position
 function createScorePopup(x, y, points, isLevelBonus = false) {
-    // For level bonuses, keep the existing bouncing behavior
+    // For level bonuses, create a more elegant display
     if (isLevelBonus) {
         scorePopups.push({
             x,
             y,
             points,
-            lifetime: SCORE_POPUP_LIFETIME * 3,
-            scale: 0.5, // Start at half size
-            opacity: 1,
+            lifetime: SCORE_POPUP_LIFETIME * 3, // Longer lifetime for level bonus
+            scale: 1.0, // Start smaller
+            maxScale: 2.5, // Grow to this size
+            opacity: 0, // Start transparent
             rotation: 0,
             bouncePhase: 0,
             isLevelBonus,
-            color: null
+            color: '#FFFF00', // Yellow color for level bonus
+            offsetX: 0, // No offset for level bonuses
+            growTime: 45, // Frames to grow to full size
+            holdTime: 90, // Frames to hold at full size
+            fadeTime: 45 // Frames to fade out
         });
     } else {
+        // Select color based on point value
+        let colorSet = SCORE_COLORS.small;
+        if (points >= 1000) {
+            colorSet = SCORE_COLORS.large;
+        } else if (points >= 200) {
+            colorSet = SCORE_COLORS.medium;
+        }
+        
+        // Pick a random color from the appropriate set
+        const color = colorSet[Math.floor(Math.random() * colorSet.length)];
+        
+        // Add random horizontal offset to avoid clustering in the same spot
+        const offsetX = (Math.random() * 2 - 1) * SCORE_POPUP_OFFSET_RANGE;
+        
         // For regular score popups, ensure they're simple and non-rotating
         scorePopups.push({
             x,
             y,
             points,
             lifetime: SCORE_POPUP_LIFETIME,
-            scale: 0.5, // Start at half size to avoid huge initial appearance
+            scale: 1.2, // Increased from 0.4 to 1.2 (3x larger)
             opacity: 1,
             rotation: 0, // Force zero rotation
             bouncePhase: 0, // No bounce
             isLevelBonus,
-            color: null
+            color: color,
+            offsetX: offsetX
         });
     }
 }
@@ -69,47 +97,80 @@ function updateScorePopups() {
     const lifetimeReduction = 60 * deltaTime; // 60 fps equivalent
     const moveSpeed = SCORE_POPUP_SPEED * 60 * deltaTime; // Make movement frame-rate independent
     
-    for (let i = 0; i < scorePopups.length; i++) {
+    for (let i = scorePopups.length - 1; i >= 0; i--) {
         const popup = scorePopups[i];
         
         // Update lifetime based on delta time instead of fixed frames
         popup.lifetime -= lifetimeReduction;
         
+        if (popup.lifetime <= 0) {
+            scorePopups.splice(i, 1);
+            continue;
+        }
+        
         if (popup.isLevelBonus) {
-            // Level bonus behavior - bounce and scale
-            popup.bouncePhase += 0.1 * 60 * deltaTime;
-            if (popup.scale < 2.0) {
-                popup.scale += 0.1 * 60 * deltaTime; // Scale growth adjusted for frame rate
+            // Level bonus animation
+            const totalLifetime = SCORE_POPUP_LIFETIME * 3;
+            const remainingLife = popup.lifetime;
+            const elapsedTime = totalLifetime - remainingLife;
+            
+            // Phase 1: Grow and fade in
+            if (elapsedTime < popup.growTime) {
+                const growProgress = elapsedTime / popup.growTime;
+                popup.scale = popup.maxScale * growProgress;
+                popup.opacity = growProgress;
+            } 
+            // Phase 2: Hold at full size
+            else if (elapsedTime < (popup.growTime + popup.holdTime)) {
+                popup.scale = popup.maxScale;
+                popup.opacity = 1.0;
+                
+                // Add a subtle pulse effect
+                const pulsePhase = (elapsedTime - popup.growTime) / 15; // Frequency of pulse
+                const pulseAmount = Math.sin(pulsePhase) * 0.1;
+                popup.scale = popup.maxScale * (1 + pulseAmount);
+            } 
+            // Phase 3: Fade out
+            else {
+                const fadeProgress = (elapsedTime - popup.growTime - popup.holdTime) / popup.fadeTime;
+                popup.opacity = Math.max(0, 1 - fadeProgress);
+                
+                // Slow upward drift during fade out
+                popup.y -= moveSpeed * 0.5;
             }
-            popup.y -= moveSpeed * 0.5 * (1 + Math.sin(popup.bouncePhase));
         } else {
-            // Regular score popup - simple upward movement with initial scaling
-            popup.y -= moveSpeed * 1.2;
+            // Regular score popup - faster upward movement with more horizontal drift
+            popup.y -= moveSpeed * 1.5;
+            
+            // Add slight horizontal drift based on the offset
+            if (popup.offsetX) {
+                // Move horizontally at 1/3 the vertical speed
+                const moveDirection = popup.offsetX > 0 ? 1 : -1;
+                const horizontalSpeed = moveSpeed * 0.5 * moveDirection;
+                popup.x += horizontalSpeed;
+            }
             
             // Simple scale-in effect: use percentage of total lifetime instead of frame count
             const percentComplete = 1 - (popup.lifetime / SCORE_POPUP_LIFETIME);
-            if (percentComplete < 0.25) { // First quarter of lifetime
-                // Start at 0.5 and grow to 1.0 over the first 25% of lifetime
-                popup.scale = 0.5 + (percentComplete * 2);
+            if (percentComplete < 0.15) { // First quarter of lifetime
+                // Start at 1.2 and grow to 1.8 over the first 15% of lifetime
+                popup.scale = 1.2 + (percentComplete * 4.0);
             } else {
-                popup.scale = 1.0; // Stay at full size for the rest
+                popup.scale = 1.8; // Increased from 0.6 to 1.8 (3x larger)
+            }
+            
+            // Fade out as lifetime approaches zero - based on percentage of lifetime
+            if (popup.lifetime < SCORE_POPUP_LIFETIME * 0.33) {
+                popup.opacity = popup.lifetime / (SCORE_POPUP_LIFETIME * 0.33);
             }
         }
-        
-        // Fade out as lifetime approaches zero - based on percentage of lifetime
-        if (popup.lifetime < SCORE_POPUP_LIFETIME * 0.33) {
-            popup.opacity = popup.lifetime / (SCORE_POPUP_LIFETIME * 0.33);
-        }
     }
-    
-    // Remove dead popups
-    scorePopups = scorePopups.filter(popup => popup.lifetime > 0);
 }
 
 // Draw score popups
 function drawScorePopups() {
     ctx.textAlign = 'center';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5; // Increased from 1.5
     
     for (let i = 0; i < scorePopups.length; i++) {
         const popup = scorePopups[i];
@@ -121,42 +182,122 @@ function drawScorePopups() {
         ctx.translate(popup.x, popup.y);
         
         if (popup.isLevelBonus) {
-            // Level bonus popups can have rotation and bounce effects
-            ctx.rotate(popup.rotation);
+            // Level bonus - use custom appearance
             ctx.scale(popup.scale, popup.scale);
             
-            // Bold yellow text for level bonuses
-            ctx.font = 'bold 24px "Press Start 2P", monospace';
-            ctx.fillStyle = 'rgba(255, 255, 0, ' + popup.opacity + ')';
+            // Add a glow effect
+            ctx.shadowColor = '#FFFF00';
+            ctx.shadowBlur = 15 * popup.opacity;
+            
+            // Custom font and colors for level bonus
+            ctx.font = 'bold 28px "Press Start 2P", monospace';
+            
+            // Format the score with "+" prefix and commas
+            const formattedPoints = "+" + popup.points.toLocaleString();
+            
+            // Add a subtle text shadow for depth
+            ctx.fillStyle = 'rgba(255, 180, 0, ' + (popup.opacity * 0.7) + ')';
+            ctx.fillText(formattedPoints, 2, 2); // Offset shadow
+            
+            // Main text with gradient
+            const gradient = ctx.createLinearGradient(0, -20, 0, 20);
+            gradient.addColorStop(0, 'rgba(255, 255, 0, ' + popup.opacity + ')');
+            gradient.addColorStop(1, 'rgba(255, 160, 0, ' + popup.opacity + ')');
+            ctx.fillStyle = gradient;
+            
+            // Draw text
+            ctx.fillText(formattedPoints, 0, 0);
+            
+            // Draw outline
+            ctx.lineWidth = 1.5;
             ctx.strokeStyle = 'rgba(255, 120, 0, ' + popup.opacity + ')';
+            ctx.strokeText(formattedPoints, 0, 0);
+            
+            // Add "LEVEL BONUS" text below
+            ctx.font = '12px "Press Start 2P", monospace';
+            ctx.fillStyle = 'rgba(255, 255, 255, ' + popup.opacity + ')';
+            ctx.fillText("LEVEL BONUS", 0, 24);
         } else {
             // Regular score popups - absolutely no rotation, only positive scale
             const scale = Math.abs(popup.scale); // Ensure scale is positive
             ctx.scale(scale, scale);
             
-            // Set text style based on point value
+            // Larger font sizes (3x increase)
             if (popup.points >= 1000) {
-                ctx.font = 'bold 20px "Press Start 2P", monospace';
-                ctx.fillStyle = 'rgba(255, 215, 0, ' + popup.opacity + ')'; // Gold
-                ctx.strokeStyle = 'rgba(255, 165, 0, ' + popup.opacity + ')'; // Orange
-            } else if (popup.points >= 200) {
-                ctx.font = 'bold 16px "Press Start 2P", monospace';
-                ctx.fillStyle = 'rgba(173, 216, 230, ' + popup.opacity + ')'; // Light blue
-                ctx.strokeStyle = 'rgba(30, 144, 255, ' + popup.opacity + ')'; // Dodger blue
+                ctx.font = 'bold 22px "Press Start 2P", monospace'; // Increased from 16px
             } else {
-                ctx.font = '16px "Press Start 2P", monospace';
-                ctx.fillStyle = 'rgba(255, 255, 255, ' + popup.opacity + ')'; // White
-                ctx.strokeStyle = 'rgba(100, 149, 237, ' + popup.opacity + ')'; // Cornflower blue
+                ctx.font = '18px "Press Start 2P", monospace'; // Increased from 12px
             }
+            
+            // Use custom colors if provided
+            if (popup.color) {
+                ctx.fillStyle = 'rgba(' + hexToRgba(popup.color, popup.opacity) + ')';
+                // Create a darker stroke from the fill color
+                ctx.strokeStyle = 'rgba(' + hexToRgba(darkenColor(popup.color), popup.opacity) + ')';
+            } else {
+                // Fallback to default colors
+                if (popup.points >= 1000) {
+                    ctx.fillStyle = 'rgba(255, 215, 0, ' + popup.opacity + ')'; // Gold
+                    ctx.strokeStyle = 'rgba(255, 165, 0, ' + popup.opacity + ')'; // Orange
+                } else if (popup.points >= 200) {
+                    ctx.fillStyle = 'rgba(173, 216, 230, ' + popup.opacity + ')'; // Light blue
+                    ctx.strokeStyle = 'rgba(30, 144, 255, ' + popup.opacity + ')'; // Dodger blue
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, ' + popup.opacity + ')'; // White
+                    ctx.strokeStyle = 'rgba(100, 149, 237, ' + popup.opacity + ')'; // Cornflower blue
+                }
+            }
+            
+            // Draw text with outline for better visibility
+            ctx.strokeText("+" + popup.points, 0, 0);
+            ctx.fillText("+" + popup.points, 0, 0);
         }
-        
-        // Draw text with outline for better visibility
-        ctx.strokeText(popup.points, 0, 0);
-        ctx.fillText(popup.points, 0, 0);
         
         // Restore transform
         ctx.restore();
     }
+}
+
+// Helper function: Convert hex color to rgba string
+function hexToRgba(hex, alpha = 1) {
+    // Remove # if present
+    hex = hex.replace('#', '');
+    
+    // Convert 3-digit hex to 6-digits
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Extract r, g, b components
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return `${r}, ${g}, ${b}, ${alpha}`;
+}
+
+// Helper function: Darken a hex color for stroke
+function darkenColor(hex) {
+    // Remove # if present
+    hex = hex.replace('#', '');
+    
+    // Convert 3-digit hex to 6-digits
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Extract and darken r, g, b components
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+    
+    // Darken by multiplying by 0.7
+    r = Math.floor(r * 0.7);
+    g = Math.floor(g * 0.7);
+    b = Math.floor(b * 0.7);
+    
+    // Convert back to hex
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 // Visual enhancement features
@@ -271,25 +412,27 @@ const BULLET_SPEED = 10;                 // Speed of player bullets
 const BULLET_LIFETIME = 50;              // How long bullets last
 
 // Alien constants
-const ALIEN_SIZE = 20;                   // Size of alien ships
-const ALIEN_SPEED = 2;                   // Maximum alien movement speed
-const ALIEN_THRUST = 0.1;                // Alien acceleration rate
-const ALIEN_ROTATION_SPEED = 0.1;        // How fast aliens can turn
+const ALIEN_SIZE = 20;                  // Size of alien ship
+const ALIEN_SPEED = 4;                  // Movement speed
+const ALIEN_BASE_SPEED = 200;           // Base speed for difficulty scaling
+const ALIEN_FIRE_RATE = 0.5;            // Base fire rate for difficulty scaling (bullets per second)
+const ALIEN_ROTATION_SPEED = 0.1;       // How fast aliens rotate
 const ALIEN_FRICTION = 0.99;             // Friction applied to alien movement
 const ALIEN_POINTS = 1000;               // Score for destroying an alien
-const ALIEN_MAX_COUNT = 1;               // Maximum aliens at once
+const ALIEN_MAX_COUNT = 3;               // Maximum aliens at once
 const ALIEN_CHANGE_DIRECTION_RATE = 60;  // How often aliens change direction
 const ALIEN_FIRE_RATE_MIN = 30;          // Minimum frames between alien shots
 const ALIEN_FIRE_RATE_MAX = 90;          // Maximum frames between alien shots
 const ALIEN_MAX_BULLETS = 3;             // Maximum alien bullets on screen
-const ALIEN_BULLET_SPEED = 5;            // Speed of alien bullets
+const ALIEN_BULLET_SPEED = 5;          // Speed of alien bullets
+const ALIEN_BULLET_LIFETIME = 3;         // Seconds before alien bullets expire
 const ALIEN_BULLET_SIZE = 3;             // Size of alien bullets
 const ALIEN_BULLET_PULSE_SPEED = 0.2;    // Speed of bullet pulse animation
 
 // Alien spawn timing
-const ALIEN_BASE_SPAWN_INTERVAL = 1800;  // Base interval (30 seconds at 60fps)
-const ALIEN_SPAWN_INTERVAL_DECREASE = 300; // Decrease per level (5 seconds)
-const ALIEN_MIN_SPAWN_INTERVAL = 600;    // Minimum interval (10 seconds)
+const ALIEN_BASE_SPAWN_INTERVAL = 15000; // 15 seconds at game start
+const ALIEN_MIN_SPAWN_INTERVAL = 5000; // Minimum 5 seconds between spawns
+const ALIEN_SPAWN_INTERVAL_DECREASE = 1000; // Decrease by 1 second per level
 const ALIEN_SPAWN_DELAY = 20000;         // Base delay between aliens (20 seconds)
 const ALIEN_SPAWN_RANDOM = 10000;        // Additional random delay (up to 10 seconds)
 
@@ -339,7 +482,9 @@ let soundFX = {
     bangLarge: null,
     bangMedium: null,
     bangSmall: null,
-    explode: null
+    explode: null,
+    alienSpawn: null,
+    alienFire: null
 };
 let audioContext = null;
 
@@ -582,8 +727,8 @@ function gameLoop(timestamp) {
         // Active gameplay
         if (!gamePaused) {
             updateGame();
-            updateAliens();
-            updateAlienBullets();
+            // Note: updateAliens() and updateAlienBullets() are already called in updateGame()
+            // Removing redundant calls here to prevent updating aliens twice
             updateScorePopups();
             updateAlienDebris();
             updateLevelAnnouncement();
@@ -1305,6 +1450,11 @@ window.addEventListener('keydown', (e) => {
     if ((e.key === 'u' || e.key === 'U') && gameStarted && !gamePaused) {
         if (aliens.length < ALIEN_MAX_COUNT) {
             createAlien();
+            if (level <= 1) {
+                addLogMessage('DEBUG: Alien created in level 1 (using cheat - normally aliens only appear from level 2)');
+            } else {
+                addLogMessage('DEBUG: Alien created (cheat)');
+            }
         }
         return;
     }
@@ -1313,6 +1463,7 @@ window.addEventListener('keydown', (e) => {
     if ((e.key === 'b' || e.key === 'B') && gameStarted && !gamePaused) {
         if (!battlestar) {
             createBattlestar();
+            addLogMessage('DEBUG: Battlestar created (cheat)');
         }
         return;
     }
@@ -1484,7 +1635,9 @@ function loadSounds() {
             bangLarge: { play: () => playSound('bangLarge') },
             bangMedium: { play: () => playSound('bangMedium') },
             bangSmall: { play: () => playSound('bangSmall') },
-            explode: { play: () => playSound('explode') }
+            explode: { play: () => playSound('explode') },
+            alienSpawn: { play: () => playSound('alienSpawn') },
+            alienFire: { play: () => playSound('alienFire') }
         };
         
         // Initialize sound nodes
@@ -1596,6 +1749,9 @@ function playSound(soundType) {
             message.amplitude = 0.8; // Higher amplitude for large explosions
         } else if (soundType === 'bangMedium') {
             message.amplitude = 0.6; // Medium amplitude for medium explosions
+        } else if (soundType === 'alienSpawn') {
+            message.amplitude = 0.7; // Good volume for the swoosh effect
+            message.duration = 1.0; // Longer duration for the swoosh
         }
         
         soundNode.port.postMessage(message);
@@ -1780,20 +1936,32 @@ function updateGame() {
         const levelBonus = 1000 * Math.pow(2, level - 1); // 1000 for level 1, 2000 for level 2, 4000 for level 3, etc.
         score += levelBonus;
         
-        // Create a centered, large score popup for the level bonus
+        // Create a single centered, larger score popup for the level bonus
         createScorePopup(canvas.width / 2, canvas.height / 2, levelBonus, true);
         
-        // Create additional surrounding bonus popups for visual impact
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const distance = 100;
-            const x = canvas.width / 2 + Math.cos(angle) * distance;
-            const y = canvas.height / 2 + Math.sin(angle) * distance;
-            createScorePopup(x, y, levelBonus, true);
+        // Add a more elegant visual effect instead of multiple popups
+        const numRays = 12; // Reduce from previous 8 surrounding popups
+        for (let i = 0; i < numRays; i++) {
+            const angle = (i / numRays) * Math.PI * 2;
+            const length = 150 + Math.random() * 50;
+            
+            battlestarDebris.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                vx: Math.cos(angle) * 2,
+                vy: Math.sin(angle) * 2,
+                size: 1,
+                maxSize: 3,
+                length: length,
+                angle: angle,
+                lifetime: 90 + Math.random() * 30,
+                color: '#FFFF00',
+                type: 'ray'
+            });
         }
         
-        // Add special visual effect for level completion
-        for (let i = 0; i < 50; i++) {
+        // Add special visual effect for level completion - reduce particle count
+        for (let i = 0; i < 30; i++) {
             const angle = Math.random() * Math.PI * 2;
             const distance = 50 + Math.random() * 150;
             const speed = 1 + Math.random() * 3;
@@ -1849,6 +2017,15 @@ function updateGame() {
             // Add some extra delay for the first alien of the level
             alienSpawnTimer = spawnInterval * 1.5;
             addLogMessage('Alien spacecraft detected in the vicinity');
+        }
+
+        // Spawn battlestar at level 3 and every 3 levels after
+        if (level >= 3 && level % 3 === 0 && !battlestar) {
+            // Add dramatic pause before battlestar appears
+            setTimeout(() => {
+                createBattlestar();
+                addLogMessage('WARNING: Battlestar approaching!');
+            }, 3000); // 3 second delay after level start
         }
     }
 }
@@ -2101,25 +2278,91 @@ function updateBullets() {
             continue;
         }
         
-        // Check collision with alien
-        if (aliens.length > 0) {
-            const alien = aliens[0];
-            if (alien.active && !alien.invulnerable) {
-                const dx = bullet.x - alien.x;
-                const dy = bullet.y - alien.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+        // Check collision with aliens
+        for (let a = aliens.length - 1; a >= 0; a--) {
+            const alien = aliens[a];
+            const dx = bullet.x - alien.x;
+            const dy = bullet.y - alien.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < alien.radius) {
+                // Remove bullet
+                bullets.splice(i, 1);
                 
-                if (distance < ALIEN_SIZE) {
-                    // Remove bullet
-                    bullets.splice(i, 1);
-                    
-                    // Calculate hit angle for directional explosion
-                    const hitAngle = Math.atan2(dy, dx);
-                    
-                    // Destroy alien with bullet hit effect
-                    destroyAlien(alien, true, hitAngle);
-                    continue;
+                // Calculate hit angle for directional explosion
+                const hitAngle = Math.atan2(dy, dx);
+                
+                // Reduce alien health
+                alien.health--;
+                alien.hitTime = performance.now();
+                
+                // Create hit effect
+                for (let p = 0; p < 5; p++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    alienDebris.push({
+                        x: bullet.x,
+                        y: bullet.y,
+                        vx: Math.cos(angle) * 2,
+                        vy: Math.sin(angle) * 2,
+                        size: 1 + Math.random() * 2,
+                        rotation: 0,
+                        rotationSpeed: 0,
+                        lifetime: 20,
+                        color: '#FFFFFF',
+                        type: 'circle'
+                    });
                 }
+                
+                // Play hit sound
+                playSound('bangSmall');
+                
+                // If alien is destroyed
+                if (alien.health <= 0) {
+                    // Add score based on alien's value
+                    score += alien.scoreValue;
+                    
+                    // Create score popup
+                    createScorePopup(alien.x, alien.y, alien.scoreValue);
+                    
+                    // Create explosion effect
+                    for (let p = 0; p < 20; p++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 1 + Math.random() * 3;
+                        alienDebris.push({
+                            x: alien.x,
+                            y: alien.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            size: 2 + Math.random() * 3,
+                            rotation: Math.random() * Math.PI * 2,
+                            rotationSpeed: (Math.random() - 0.5) * 0.2,
+                            lifetime: 60,
+                            color: '#00FFFF',
+                            type: Math.random() < 0.5 ? 'circle' : 'line'
+                        });
+                    }
+                    
+                    // Add shockwave
+                    alienDebris.push({
+                        x: alien.x,
+                        y: alien.y,
+                        radius: 1,
+                        maxRadius: 50,
+                        lifetime: 30,
+                        type: 'shockwave',
+                        color: '#00FFFF'
+                    });
+                    
+                    // Remove alien
+                    aliens.splice(a, 1);
+                    
+                    // Play explosion sound
+                    playSound('bangLarge');
+                    
+                    addLogMessage("Alien destroyed! +" + alien.scoreValue + " points");
+                }
+                
+                break; // Only hit one alien per bullet
             }
         }
         
@@ -2525,22 +2768,13 @@ function destroyAsteroid(index, collisionAngle = null) {
     const levelBonus = Math.floor((level - 1) * 0.5 * SCORE_MULTIPLIER); // 50% more points per level
     const points = (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
     
-    // Add score and create score popup - explicit false for isLevelBonus
+    // Add score
     score += points;
     
-    // Create a simple, guaranteed upright score popup
-    scorePopups.push({
-        x: asteroid.x,
-        y: asteroid.y,
-        points: points,
-        lifetime: SCORE_POPUP_LIFETIME,
-        scale: 0.7, // Start slightly smaller and grow to 1.0
-        opacity: 1,
-        rotation: 0, // Force zero rotation
-        bouncePhase: 0, // No bounce
-        isLevelBonus: false,
-        color: null
-    });
+    // Create score popup with small random offsets to avoid obscuring the asteroid fragments
+    const offsetX = (Math.random() * 2 - 1) * 20; // Random offset between -20 and 20 pixels
+    const offsetY = (Math.random() * 2 - 1) * 20; 
+    createScorePopup(asteroid.x + offsetX, asteroid.y + offsetY, points, false);
     
     // Play sound based on asteroid size
     if (asteroid.size === 3) {
@@ -3272,27 +3506,28 @@ function createAliens() {
 
 // Update alien ships' behavior and state
 function updateAliens() {
-    // Only spawn aliens if we're past level 1
+    // Only spawn new aliens if we're past level 1, but still allow updating existing aliens
     if (level <= 1) {
-        return; // Skip alien updates entirely in level 1
-    }
-    
-    // Timer-based spawn system scales with game progression
-    if (alienSpawnTimer > 0) {
-        alienSpawnTimer -= 60 * deltaTime;
-        if (alienSpawnTimer <= 0 && aliens.length < ALIEN_MAX_COUNT) {
-            createAlien();
-            
-            // Calculate spawn interval for next alien
-            const spawnInterval = Math.max(
-                ALIEN_MIN_SPAWN_INTERVAL,
-                ALIEN_BASE_SPAWN_INTERVAL - (level - 2) * ALIEN_SPAWN_INTERVAL_DECREASE
-            );
-            alienSpawnTimer = spawnInterval;
+        // Skip automatic spawning in level 1, but continue to allow manually created aliens to be updated
+        // This allows debug-spawned aliens to work properly in level 1
+    } else {
+        // Timer-based spawn system scales with game progression
+        if (alienSpawnTimer > 0) {
+            alienSpawnTimer -= 60 * deltaTime;
+            if (alienSpawnTimer <= 0 && aliens.length < ALIEN_MAX_COUNT) {
+                createAlien();
+                
+                // Calculate spawn interval for next alien
+                const spawnInterval = Math.max(
+                    ALIEN_MIN_SPAWN_INTERVAL,
+                    ALIEN_BASE_SPAWN_INTERVAL - (level - 2) * ALIEN_SPAWN_INTERVAL_DECREASE
+                );
+                alienSpawnTimer = spawnInterval;
+            }
         }
     }
     
-    // Update each alien's behavior and state
+    // Update each alien's behavior and state (even in level 1 if they exist from debug)
     for (let i = aliens.length - 1; i >= 0; i--) {
         const alien = aliens[i];
         
@@ -3388,7 +3623,7 @@ function updateAliens() {
                     size: ALIEN_BULLET_SIZE,
                     pulsePhase: 0
                 });
-                playSound('fire');
+                playSound('alienFire');
             }
         }
     }
@@ -3396,89 +3631,70 @@ function updateAliens() {
 
 // Create a single new alien
 function createAlien() {
-    // Randomly choose spawn side
-    const spawnSide = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
-    let x, y, dx, dy;
+    // Determine which edge to spawn from (0=top, 1=right, 2=bottom, 3=left)
+    const edge = Math.floor(Math.random() * 4);
+    let x, y;
     
-    switch(spawnSide) {
-        case 0: // top
+    // Position alien just off-screen based on selected edge
+    switch (edge) {
+        case 0: // Top
             x = Math.random() * canvas.width;
-            y = -ALIEN_SIZE;
-            dx = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
-            dy = Math.random() * ALIEN_SPEED;
+            y = -30;
             break;
-        case 1: // right
-            x = canvas.width + ALIEN_SIZE;
+        case 1: // Right
+            x = canvas.width + 30;
             y = Math.random() * canvas.height;
-            dx = -Math.random() * ALIEN_SPEED;
-            dy = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
             break;
-        case 2: // bottom
+        case 2: // Bottom
             x = Math.random() * canvas.width;
-            y = canvas.height + ALIEN_SIZE;
-            dx = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
-            dy = -Math.random() * ALIEN_SPEED;
+            y = canvas.height + 30;
             break;
-        case 3: // left
-            x = -ALIEN_SIZE;
+        case 3: // Left
+            x = -30;
             y = Math.random() * canvas.height;
-            dx = Math.random() * ALIEN_SPEED;
-            dy = Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED;
             break;
     }
     
-    // Create spawn particles in a circle around spawn point
-    for (let i = 0; i < ALIEN_SPAWN_PARTICLES; i++) {
-        const angle = (i / ALIEN_SPAWN_PARTICLES) * Math.PI * 2;
-        const distance = ALIEN_SIZE * 3;
-        alienDebris.push({
-            x: x + Math.cos(angle) * distance,
-            y: y + Math.sin(angle) * distance,
-            vx: Math.cos(angle) * -2,
-            vy: Math.sin(angle) * -2,
-            size: 2 + Math.random() * 2,
-            rotation: Math.random() * Math.PI * 2,
-            rotationSpeed: (Math.random() - 0.5) * 0.2,
-            lifetime: ALIEN_SPAWN_EFFECT_DURATION,
-            color: '#00FFFF',
-            type: 'circle',
-            isSpawnEffect: true
-        });
-    }
-
-    // Create the shockwave effect
-    alienDebris.push({
-        x: x,
-        y: y,
-        radius: 1,
-        maxRadius: ALIEN_SIZE * 4,
-        lifetime: ALIEN_SPAWN_EFFECT_DURATION,
-        type: 'shockwave',
-        color: '#00FFFF',
-        isSpawnEffect: true
-    });
+    // Calculate base speed with difficulty scaling
+    // Level 2: 75% of max speed, increasing gradually to 100% by level 5
+    const difficultyFactor = Math.min(1, 0.75 + Math.max(0, level - 2) * 0.08);
+    const baseSpeed = ALIEN_BASE_SPEED * difficultyFactor;
     
-    aliens.push({
-        x: x,
-        y: y,
-        dx: dx,
-        dy: dy,
-        radius: ALIEN_SIZE,
-        angle: 0,
-        rotation: 0,
-        targetAngle: 0,
-        fireTimer: 0,
-        directionTimer: 0,
-        active: true,
-        thrusting: false,
-        invulnerable: true,
-        invulnerableTime: ALIEN_INVULNERABILITY_TIME,
-        spawnTime: ALIEN_SPAWN_EFFECT_DURATION,
-        scale: 0 // Start small and grow
-    });
+    // Calculate fire rate with difficulty scaling
+    // Level 2: 60% of max rate, increasing gradually to 100% by level 5
+    const fireRateFactor = Math.min(1, 0.6 + Math.max(0, level - 2) * 0.13);
+    const fireRate = ALIEN_FIRE_RATE * fireRateFactor;
     
-    playSound('spawn'); // Add a spawn sound effect
-    addLogMessage('New alien spacecraft warped in!');
+    // Create alien object with adjusted properties based on level
+    const alien = {
+        x,
+        y,
+        radius: 20,
+        speedX: 0,
+        speedY: 0,
+        baseSpeed, // Store the adjusted speed
+        targetX: 0,
+        targetY: 0,
+        lastDirectionChange: performance.now(),
+        directionChangeInterval: 2000 + Math.random() * 2000,
+        fireTimer: 0, // Initialize fire timer instead of lastShot
+        fireRate, // Store the adjusted fire rate
+        fireSpread: Math.min(0.3, 0.15 + (level - 2) * 0.05), // Spread increases with level
+        health: 1 + Math.floor((level - 1) / 3), // Increase health every 3 levels
+        hitTime: 0,
+        scoreValue: 500 * (1 + Math.floor((level - 1) / 2)), // Increase score value
+        active: true, // Add active property
+        invulnerable: false // Add invulnerable property
+    };
+    
+    // Set initial target for alien to move toward
+    updateAlienTarget(alien);
+    
+    // Add to aliens array
+    aliens.push(alien);
+    
+    // Play sound effect
+    playSound('alienSpawn');
 }
 
 // Draw aliens
@@ -3740,19 +3956,8 @@ function destroyAlien(alien, wasShot = true, collisionAngle = null) {
     // Add score only if shot (not from collision)
     if (wasShot) {
         score += ALIEN_POINTS;
-        // Create a score popup directly for guaranteed correct display
-        scorePopups.push({
-            x: alien.x,
-            y: alien.y,
-            points: ALIEN_POINTS,
-            lifetime: SCORE_POPUP_LIFETIME,
-            scale: 0.7, // Start slightly smaller and grow to 1.0
-            opacity: 1,
-            rotation: 0, // Force zero rotation
-            bouncePhase: 0, // No bounce 
-            isLevelBonus: false,
-            color: null
-        });
+        // Use the createScorePopup function instead of direct push
+        createScorePopup(alien.x, alien.y, ALIEN_POINTS, false);
     }
     
     // Enhanced explosion sound
@@ -3898,9 +4103,13 @@ function destroyAsteroid(index, collisionAngle = null) {
     // Remove the original asteroid
     asteroids.splice(index, 1);
     
-    // Add score and create score popup
+    // Add score
     score += points;
-    createScorePopup(asteroid.x, asteroid.y, points, true);
+    
+    // Create score popup with random offset to avoid obscuring the debris and child asteroids
+    const offsetX = (Math.random() * 2 - 1) * 25; // Random offset between -25 and 25 pixels
+    const offsetY = (Math.random() * 2 - 1) * 25;
+    createScorePopup(asteroid.x + offsetX, asteroid.y + offsetY, points, false);
     
     // Play sound based on asteroid size
     if (asteroid.size === 3) {
@@ -4199,6 +4408,12 @@ function drawLevelAnnouncement() {
             ctx.font = '24px "Press Start 2P"';
             ctx.fillStyle = `rgba(255, 50, 50, ${opacity})`;
             ctx.fillText('ALIEN SHIPS DETECTED!', 0, 50);
+        } else if (level >= 3 && level % 3 === 0) {
+            ctx.font = '24px "Press Start 2P"';
+            ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
+            ctx.fillText('BATTLESTAR APPROACHING!', 0, 50);
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillText('EXTREME THREAT LEVEL', 0, 80);
         }
         
         ctx.restore();
@@ -4402,18 +4617,7 @@ function updateBattlestar() {
             // Add score
             score += BATTLESTAR_POINTS;
             // Create a score popup directly for guaranteed correct display
-            scorePopups.push({
-                x: battlestar.x,
-                y: battlestar.y,
-                points: BATTLESTAR_POINTS,
-                lifetime: SCORE_POPUP_LIFETIME,
-                scale: 0.5, // Start at half size to avoid huge initial appearance
-                opacity: 1,
-                rotation: 0, // Force zero rotation
-                bouncePhase: 0, // No bounce
-                isLevelBonus: false,
-                color: null
-            });
+            createScorePopup(battlestar.x, battlestar.y, BATTLESTAR_POINTS, false);
             
             // Play explosion sound
             playSound('explode');
@@ -4603,28 +4807,28 @@ function updateBattlestarDebris() {
     for (let i = battlestarDebris.length - 1; i >= 0; i--) {
         const debris = battlestarDebris[i];
         
-        if (debris.type === 'shockwave') {
-            // Update shockwave with deltaTime for consistent expansion speed
-            const expansionRate = 0.2 * 60 * deltaTime;
-            debris.radius += (debris.maxRadius - debris.radius) * expansionRate;
-            debris.lifetime -= 60 * deltaTime;
-            
-            if (debris.lifetime <= 0) {
-                battlestarDebris.splice(i, 1);
-            }
-        } else {
-            // Update normal debris with deltaTime
+        // Update position
+        if (debris.vx !== undefined && debris.vy !== undefined) {
             debris.x += debris.vx * 60 * deltaTime;
             debris.y += debris.vy * 60 * deltaTime;
+        }
+        
+        // Update rotation
+        if (debris.rotationSpeed !== undefined) {
             debris.rotation += debris.rotationSpeed * 60 * deltaTime;
-            debris.lifetime -= 60 * deltaTime;
-            
-            // Handle screen wrapping
-            handleEdgeOfScreen(debris);
-            
-            if (debris.lifetime <= 0) {
-                battlestarDebris.splice(i, 1);
-            }
+        }
+        
+        // Update shockwave radius
+        if (debris.type === 'shockwave' && debris.radius < debris.maxRadius) {
+            debris.radius += (debris.maxRadius - debris.radius) * 0.1 * 60 * deltaTime;
+        }
+        
+        // Decrement lifetime
+        debris.lifetime -= 60 * deltaTime;
+        
+        // Remove expired debris
+        if (debris.lifetime <= 0) {
+            battlestarDebris.splice(i, 1);
         }
     }
 }
@@ -4840,6 +5044,23 @@ function drawBattlestarDebris() {
             ctx.beginPath();
             ctx.arc(debris.x, debris.y, debris.radius, 0, Math.PI * 2);
             ctx.stroke();
+        } else if (debris.type === 'ray') {
+            // Draw ray effect for level completion
+            const progress = 1 - (debris.lifetime / 120); // Normalized progress (0 to 1)
+            const alpha = 1 - (progress * progress); // Quadratic fade out
+            const currentLength = debris.length * (1 - progress * 0.3); // Shrink slightly as it fades
+            
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = debris.color || '#FFFF00';
+            ctx.lineWidth = debris.size + (debris.maxSize - debris.size) * progress;
+            
+            ctx.beginPath();
+            ctx.moveTo(debris.x, debris.y);
+            ctx.lineTo(
+                debris.x + Math.cos(debris.angle) * currentLength,
+                debris.y + Math.sin(debris.angle) * currentLength
+            );
+            ctx.stroke();
         } else {
             // Draw normal debris
             ctx.translate(debris.x, debris.y);
@@ -4910,18 +5131,7 @@ function damageBattlestar(damage = 1, collisionAngle = null) {
     playSound('bangMedium');
     
     // Create a score popup for the hit - using direct creation for guaranteed upright display
-    scorePopups.push({
-        x: impactX,
-        y: impactY,
-        points: 100,
-        lifetime: SCORE_POPUP_LIFETIME,
-        scale: 0.7, // Start slightly smaller and grow to 1.0
-        opacity: 1,
-        rotation: 0, // Force zero rotation
-        bouncePhase: 0, // No bounce
-        isLevelBonus: false,
-        color: null
-    });
+    createScorePopup(impactX, impactY, 100, false);
     
     // Add score
     score += 100;
@@ -4999,4 +5209,75 @@ function startBattlestarDeathSequence() {
     
     // Play alert sound
     playSound('bangLarge');
+}  
+
+// Helper function to update alien target position
+function updateAlienTarget(alien) {
+    // Set a new target somewhere on screen
+    alien.targetX = Math.random() * canvas.width;
+    alien.targetY = Math.random() * canvas.height;
+    
+    // Update the time for next direction change
+    alien.lastDirectionChange = performance.now();
+    alien.directionChangeInterval = 2000 + Math.random() * 2000;
+}
+
+// Update all aliens
+function updateAliens() {
+    const currentTime = performance.now();
+    
+    aliens.forEach((alien, index) => {
+        // Check if it's time to change direction
+        if (currentTime - alien.lastDirectionChange > alien.directionChangeInterval) {
+            updateAlienTarget(alien);
+        }
+        
+        // Calculate direction to target
+        const dx = alien.targetX - alien.x;
+        const dy = alien.targetY - alien.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // If near target, pick a new one
+        if (distance < 50) {
+            updateAlienTarget(alien);
+        }
+        
+        // Set speed towards target
+        if (distance > 0) {
+            alien.speedX = (dx / distance) * alien.baseSpeed;
+            alien.speedY = (dy / distance) * alien.baseSpeed;
+        }
+        
+        // Move the alien
+        alien.x += alien.speedX * deltaTime;
+        alien.y += alien.speedY * deltaTime;
+        
+        // Keep in bounds
+        handleEdgeOfScreen(alien);
+        
+        // Fire at player with a random chance based on fire rate
+        if (Math.random() < alien.fireRate * deltaTime && ship && !ship.exploding) {
+            // Calculate angle to player
+            const playerAngle = Math.atan2(ship.y - alien.y, ship.x - alien.x);
+            
+            // Add some randomness to the firing angle based on fireSpread
+            const spreadAngle = playerAngle + (Math.random() * 2 - 1) * alien.fireSpread;
+            
+            // Create alien bullet
+            alienBullets.push({
+                x: alien.x,
+                y: alien.y,
+                dx: Math.cos(spreadAngle) * ALIEN_BULLET_SPEED,
+                dy: Math.sin(spreadAngle) * ALIEN_BULLET_SPEED,
+                active: true,
+                size: ALIEN_BULLET_SIZE,
+                pulsePhase: 0,
+                radius: 3,
+                lifetime: ALIEN_BULLET_LIFETIME
+            });
+            
+            // Play sound
+            playSound('alienFire');
+        }
+    });
 }  
