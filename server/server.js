@@ -78,8 +78,20 @@ app.post('/api/highscores', (req, res) => {
         return res.status(400).json({ error: 'Score out of valid range' });
     }
     
-    // Sanitize initials (only allow A-Z and limit to 3 characters)
-    const sanitizedInitials = initials.replace(/[^A-Z]/g, '').substring(0, 3);
+    // Sanitize initials
+    // 1. Convert to upper case so lowercase letters are accepted
+    // 2. Remove any characters outside A-Z
+    // 3. Limit to the first 3 characters
+    const sanitizedInitials = (initials || '')
+        .toUpperCase()
+        .replace(/[^A-Z]/g, '')
+        .substring(0, 3);
+
+    // Ensure we still have at least one valid character after sanitising
+    if (!sanitizedInitials) {
+        console.log('Validation failed: initials contain no valid characters');
+        return res.status(400).json({ error: 'Invalid initials' });
+    }
     
     // Add new score with timestamp
     const newScore = { 
