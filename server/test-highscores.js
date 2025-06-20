@@ -11,7 +11,9 @@ const fetch = require('node-fetch');
 
 const API_URL = 'http://localhost:3000/api/highscores';
 const TEST_SCORE = {
-    initials: 'TST',
+    // Use lowercase initials to verify that the server correctly
+    // sanitizes and uppercases incoming values
+    initials: 'tst',
     score: Math.floor(Math.random() * 5000) + 1000, // Random score between 1000-6000
     gameData: {
         level: 3,
@@ -19,6 +21,10 @@ const TEST_SCORE = {
         timePlayed: 120000 // 2 minutes
     }
 };
+
+// The server converts initials to uppercase and strips non A-Z characters.
+// Replicate that logic here so we know what to look for in the response.
+const EXPECTED_INITIALS = TEST_SCORE.initials.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 3);
 
 async function testHighScoreAPI() {
     try {
@@ -71,8 +77,8 @@ async function testHighScoreAPI() {
         console.log(`   Retrieved ${updatedScores.length} high scores`);
         
         // Find our test score
-        const foundScore = updatedScores.find(score => 
-            score.initials === TEST_SCORE.initials && 
+        const foundScore = updatedScores.find(score =>
+            score.initials === EXPECTED_INITIALS &&
             score.score === TEST_SCORE.score
         );
         
