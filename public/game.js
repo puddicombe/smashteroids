@@ -680,7 +680,8 @@ window.addEventListener('load', function() {
     init();
 });
 
-// Add at the top with other game variables
+// Frame timing variables
+// Used by the game loop to calculate deltaTime
 let lastFrameTime = 0;
 let deltaTime = 0;
 
