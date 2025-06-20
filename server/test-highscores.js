@@ -8,13 +8,15 @@
  */
 
 const fetch = require('node-fetch');
+const assert = require('assert');
 
 const API_URL = 'http://localhost:3000/api/highscores';
 const TEST_SCORE = {
     // Use lowercase initials to verify that the server correctly
     // sanitizes and uppercases incoming values
     initials: 'tst',
-    score: Math.floor(Math.random() * 5000) + 1000, // Random score between 1000-6000
+    // Use a fixed value to simplify testing
+    score: 12345,
     gameData: {
         level: 3,
         timestamp: Date.now(),
@@ -62,6 +64,12 @@ async function testHighScoreAPI() {
         }
         
         const postResult = await postResponse.json();
+        const inserted = Array.isArray(postResult.highScores) &&
+            postResult.highScores.find(score =>
+                score.initials === EXPECTED_INITIALS &&
+                score.score === TEST_SCORE.score
+            );
+        assert.ok(inserted, 'Posted score not returned by server');
         console.log('   Score added successfully!');
         console.log();
         
@@ -95,6 +103,7 @@ async function testHighScoreAPI() {
     } catch (error) {
         console.error('\n❌ Test failed:', error.message);
         console.error('Make sure the server is running on http://localhost:3000');
+        process.exit(1);
     }
 }
 
