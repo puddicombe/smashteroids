@@ -525,6 +525,7 @@ let lastScoreSubmitTime = 0;
 // Near the top of the file, add a variable to store the high score
 // ... existing code ...
 let pendingHighScore = 0; // Add this variable to store the score for high score submission
+let highScoreSubmitCooldown = 0;
 
 // ... rest of the existing code ...
 
@@ -4419,9 +4420,6 @@ function drawLevelAnnouncement() {
         ctx.restore();
     }
 }
-
-// Add a cooldown variable near the top of your file with other game state variables
-let highScoreSubmitCooldown = 0;
 
 // Remove the transition state variable since we're using a simpler approach
 
