@@ -1848,6 +1848,9 @@ function loadSounds() {
         soundNodes = {};
         let levelStartNode;
         
+        // Track AudioWorklet loading state
+        window.audioWorkletLoaded = false;
+        
         // If context is suspended (browser policy), add a click handler to resume it
         if (audioContext.state === 'suspended') {
             const resumeAudio = function() {
@@ -1867,12 +1870,19 @@ function loadSounds() {
         const timestamp = new Date().getTime();
         audioContext.audioWorklet.addModule(`audioWorklet.js?v=${timestamp}`)
             .then(() => {
+                // Mark AudioWorklet as loaded
+                window.audioWorkletLoaded = true;
+                console.log('AudioWorklet loaded successfully');
+                addLogMessage('Audio system initialized');
+                
                 // Level start sound (triumphant rising tone)
                 levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
                 // ... existing code ...
             })
             .catch(error => {
-                // ... existing code ...
+                console.error('Failed to load AudioWorklet:', error);
+                addLogMessage('Audio system failed to load: ' + error.message);
+                window.audioWorkletLoaded = false;
             });
     } catch (e) {
         // ... existing code ...
@@ -1942,6 +1952,9 @@ function resetAudioContext() {
             thrustNode = null;
         }
         
+        // Reset loading state
+        window.audioWorkletLoaded = false;
+        
         // Close old context if it exists
         if (audioContext && audioContext.state !== 'closed') {
             audioContext.close();
@@ -1954,16 +1967,19 @@ function resetAudioContext() {
         const timestamp = new Date().getTime();
         audioContext.audioWorklet.addModule(`audioWorklet.js?v=${timestamp}`)
             .then(() => {
+                window.audioWorkletLoaded = true;
                 addLogMessage('Audio context reset successfully');
             })
             .catch(error => {
                 console.error('Failed to reload AudioWorklet:', error);
                 addLogMessage('Audio reset failed: ' + error.message);
+                window.audioWorkletLoaded = false;
             });
             
     } catch (e) {
         console.error('Failed to reset audio context:', e);
         addLogMessage('Audio reset error: ' + e.message);
+        window.audioWorkletLoaded = false;
     }
 }
 
@@ -1971,6 +1987,12 @@ function resetAudioContext() {
 function playThrustSound(play) {
     if (!audioContext) {
         console.error('Audio context not available for thrust sound');
+        return;
+    }
+    
+    // Check if AudioWorklet is loaded
+    if (!window.audioWorkletLoaded) {
+        console.log('AudioWorklet not loaded yet, skipping thrust sound');
         return;
     }
     
@@ -2045,6 +2067,12 @@ function playSound(soundType) {
     if (!audioContext) {
         console.error('Audio context not available');
         addLogMessage('Audio context not available');
+        return;
+    }
+    
+    // Check if AudioWorklet is loaded
+    if (!window.audioWorkletLoaded) {
+        console.log('AudioWorklet not loaded yet, skipping sound:', soundType);
         return;
     }
     
