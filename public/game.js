@@ -5741,4 +5741,3 @@ function drawDebugInfo() {
     ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
     ctx.fillText(`Press D to hide`, 20, y);
 }
-
