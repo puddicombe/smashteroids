@@ -1879,10 +1879,22 @@ function loadSounds() {
             console.log('AudioContext.audioWorklet:', audioContext.audioWorklet);
             console.log('AudioContext state:', audioContext.state);
             console.log('AudioContext constructor name:', audioContext.constructor.name);
+            console.log('Is secure context:', window.isSecureContext);
+            console.log('Current protocol:', window.location.protocol);
+            console.log('Current hostname:', window.location.hostname);
             
             if (!audioContext.audioWorklet) {
                 console.error('AudioWorklet is not supported in this browser');
                 console.log('Available AudioContext properties:', Object.getOwnPropertyNames(audioContext));
+                
+                // Check if it's a secure context issue
+                if (!window.isSecureContext) {
+                    console.error('AudioWorklet requires a secure context (HTTPS or localhost)');
+                    addLogMessage('AudioWorklet requires HTTPS - using fallback audio');
+                } else {
+                    console.error('AudioWorklet not available despite secure context');
+                    addLogMessage('AudioWorklet not supported - using fallback audio');
+                }
                 
                 // Try creating a new AudioContext with the standard API if we're using webkit
                 if (audioContext.constructor.name === 'webkitAudioContext') {
@@ -1902,26 +1914,113 @@ function loadSounds() {
                 
                 // If still no AudioWorklet support, use fallback
                 if (!audioContext.audioWorklet) {
-                    addLogMessage('AudioWorklet not supported - using fallback audio');
                     window.audioWorkletLoaded = false;
                     
-                    // Set up fallback sound objects that do nothing
-                    soundFX = {
-                        fire: { play: () => console.log('Audio disabled: fire sound') },
-                        thrust: { 
-                            play: () => console.log('Audio disabled: thrust sound'),
-                            pause: () => console.log('Audio disabled: thrust stop'),
-                            currentTime: 0
-                        },
-                        bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
-                        bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
-                        bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
-                        explode: { play: () => console.log('Audio disabled: explode sound') },
-                        alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
-                        alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
-                    };
+                    // Try to create a fallback audio system using Web Audio API
+                    console.log('Attempting to create fallback audio system...');
+                    try {
+                        // Create simple sound generators using Web Audio API
+                        const createSound = (frequency, duration, type = 'sine') => {
+                            const oscillator = audioContext.createOscillator();
+                            const gainNode = audioContext.createGain();
+                            
+                            oscillator.connect(gainNode);
+                            gainNode.connect(audioContext.destination);
+                            
+                            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                            oscillator.type = type;
+                            
+                            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+                            
+                            oscillator.start(audioContext.currentTime);
+                            oscillator.stop(audioContext.currentTime + duration);
+                        };
+                        
+                        // Create fallback sound objects
+                        soundFX = {
+                            fire: { 
+                                play: () => createSound(1200, 0.2, 'square'),
+                                currentTime: 0
+                            },
+                            thrust: { 
+                                play: () => {
+                                    // Create continuous thrust sound
+                                    const oscillator = audioContext.createOscillator();
+                                    const gainNode = audioContext.createGain();
+                                    
+                                    oscillator.connect(gainNode);
+                                    gainNode.connect(audioContext.destination);
+                                    
+                                    oscillator.frequency.setValueAtTime(100, audioContext.currentTime);
+                                    oscillator.type = 'sawtooth';
+                                    
+                                    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                                    
+                                    oscillator.start(audioContext.currentTime);
+                                    
+                                    // Store for stopping later
+                                    soundFX.thrust._oscillator = oscillator;
+                                    soundFX.thrust._gainNode = gainNode;
+                                },
+                                pause: () => {
+                                    if (soundFX.thrust._oscillator) {
+                                        soundFX.thrust._oscillator.stop();
+                                        soundFX.thrust._oscillator = null;
+                                    }
+                                },
+                                currentTime: 0
+                            },
+                            bangLarge: { 
+                                play: () => createSound(80, 0.8, 'sawtooth'),
+                                currentTime: 0
+                            },
+                            bangMedium: { 
+                                play: () => createSound(150, 0.5, 'sawtooth'),
+                                currentTime: 0
+                            },
+                            bangSmall: { 
+                                play: () => createSound(300, 0.3, 'sine'),
+                                currentTime: 0
+                            },
+                            explode: { 
+                                play: () => createSound(200, 0.6, 'sawtooth'),
+                                currentTime: 0
+                            },
+                            alienSpawn: { 
+                                play: () => createSound(400, 0.4, 'triangle'),
+                                currentTime: 0
+                            },
+                            alienFire: { 
+                                play: () => createSound(800, 0.3, 'square'),
+                                currentTime: 0
+                            }
+                        };
+                        
+                        addLogMessage('Using fallback audio system (Web Audio API)');
+                        console.log('Fallback audio system created successfully');
+                    } catch (fallbackError) {
+                        console.error('Failed to create fallback audio system:', fallbackError);
+                        
+                        // Set up dummy sound objects that do nothing
+                        soundFX = {
+                            fire: { play: () => console.log('Audio disabled: fire sound') },
+                            thrust: { 
+                                play: () => console.log('Audio disabled: thrust sound'),
+                                pause: () => console.log('Audio disabled: thrust stop'),
+                                currentTime: 0
+                            },
+                            bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
+                            bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
+                            bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
+                            explode: { play: () => console.log('Audio disabled: explode sound') },
+                            alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
+                            alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
+                        };
+                        
+                        addLogMessage('Game will run without audio effects');
+                    }
                     
-                    addLogMessage('Game will run without audio effects');
                     return;
                 }
             }
