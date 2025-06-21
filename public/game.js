@@ -435,6 +435,8 @@ const ALIEN_MIN_SPAWN_INTERVAL = 5000; // Minimum 5 seconds between spawns
 const ALIEN_SPAWN_INTERVAL_DECREASE = 1000; // Decrease by 1 second per level
 const ALIEN_SPAWN_DELAY = 20000;         // Base delay between aliens (20 seconds)
 const ALIEN_SPAWN_RANDOM = 10000;        // Additional random delay (up to 10 seconds)
+const ALIEN_SPAWN_CHANCE = 0.3;          // 30% chance per spawn attempt
+const ALIEN_THRUST = 0.5;                // Thrust force for alien movement
 
 // Add alien spawn and invulnerability constants
 const ALIEN_INVULNERABILITY_TIME = 180; // 3 seconds at 60fps
@@ -511,7 +513,12 @@ const SAFE_RESPAWN_DISTANCE = 100;
  * for balanced gameplay
  */
 let gamePaused = false;
+let wasPausedBeforeFocus = false; // Remember pause state when window loses focus
 const MAX_BULLETS = 4;
+
+// Debug/testing variables
+let forceAliensInLevel1 = false; // Set to true to allow aliens in level 1 for testing
+let showDebugInfo = false; // Toggle for showing debug info on screen
 
 /**
  * Server communication state
@@ -642,6 +649,35 @@ function init() {
     generateStars();
     initWelcomeAsteroids();
     
+    // Add window focus/blur handlers for automatic pause
+    window.addEventListener('blur', function() {
+        if (gameStarted && !gamePaused) {
+            wasPausedBeforeFocus = false;
+            gamePaused = true;
+            addLogMessage('Game auto-paused (window lost focus)');
+        }
+    });
+    
+    window.addEventListener('focus', function() {
+        if (gameStarted && gamePaused && !wasPausedBeforeFocus) {
+            gamePaused = false;
+            addLogMessage('Game auto-resumed (window regained focus)');
+        }
+    });
+    
+    // Load pause preferences from localStorage
+    try {
+        const autoPausePref = localStorage.getItem('smashteroids_autoPause');
+        if (autoPausePref === 'false') {
+            // User has disabled auto-pause
+            window.removeEventListener('blur', arguments.callee);
+            window.removeEventListener('focus', arguments.callee);
+            addLogMessage('Auto-pause disabled by user preference');
+        }
+    } catch (e) {
+        // Ignore localStorage errors
+    }
+    
     // Start game loop
     gameLoop();
     
@@ -711,6 +747,11 @@ function gameLoop(timestamp) {
         highScoreSubmitCooldown--;
     }
     
+    // Clean up old sound nodes periodically to prevent resource exhaustion
+    if (frameCount % 300 === 0) { // Every 5 seconds at 60fps
+        cleanupSoundNodes();
+    }
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -749,6 +790,7 @@ function gameLoop(timestamp) {
     // Overlay systems
     if (showingReleaseNotes) drawReleaseNotes();
     drawLog();
+    drawDebugInfo(); // Draw debug info if enabled
     
     requestAnimationFrame(gameLoop);
 }
@@ -1107,6 +1149,33 @@ function drawWelcomeInstructions() {
     
     // Regular text for remaining controls
     ctx.fillText('PAUSE: P', centerX, startY);
+    
+    // Draw animated pause icon
+    ctx.save();
+    ctx.translate(illustrationX, startY);
+    
+    // Animate pause icon with pulsing effect
+    const pulse = Math.sin(frameCount * 0.15) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+    
+    // Draw two vertical bars (pause symbol)
+    const barWidth = 4;
+    const barHeight = 20;
+    const barSpacing = 8;
+    
+    ctx.fillRect(-barSpacing/2 - barWidth/2, -barHeight/2, barWidth, barHeight);
+    ctx.fillRect(barSpacing/2 - barWidth/2, -barHeight/2, barWidth, barHeight);
+    
+    // Draw "P" key indicator
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-15, barHeight/2 + 5, 30, 12);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('P', 0, barHeight/2 + 13);
+    
+    ctx.restore();
     startY += lineHeight;
     ctx.fillText('QUIT: ESC', centerX, startY);
 }
@@ -1424,18 +1493,72 @@ function drawGameOver() {
 
 // Draw pause screen overlay
 function drawPauseScreen() {
-    // Darken the background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    // Darken the background with a subtle gradient
+    const gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 0, canvas.width/2, canvas.height/2, canvas.width/2);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.8)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Draw pause text
+    // Add a subtle border glow
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+    
+    // Animated pause icon (two vertical bars)
+    const iconX = canvas.width / 2;
+    const iconY = canvas.height / 3 - 60;
+    const iconSize = 40;
+    const pulse = Math.sin(frameCount * 0.1) * 0.2 + 0.8; // Subtle pulsing effect
+    
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+    ctx.fillRect(iconX - iconSize/2 - 15, iconY - iconSize/2, 12, iconSize);
+    ctx.fillRect(iconX - iconSize/2 + 15, iconY - iconSize/2, 12, iconSize);
+    
+    // Main pause text with glow effect
+    ctx.shadowColor = 'white';
+    ctx.shadowBlur = 10;
     ctx.fillStyle = 'white';
-    ctx.font = '28px "Press Start 2P"';
+    ctx.font = 'bold 32px "Press Start 2P"';
     ctx.textAlign = 'center';
     ctx.fillText('GAME PAUSED', canvas.width / 2, canvas.height / 3);
     
+    // Reset shadow for other text
+    ctx.shadowBlur = 0;
+    
+    // Instructions with better spacing
+    ctx.font = '16px "Press Start 2P"';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fillText('PRESS P TO RESUME', canvas.width / 2, canvas.height / 3 + 50);
+    
+    // Additional controls info
+    ctx.font = '12px "Press Start 2P"';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillText('ESC: EXIT TO MENU', canvas.width / 2, canvas.height / 3 + 80);
+    
+    // Current game stats
     ctx.font = '14px "Press Start 2P"';
-    ctx.fillText('PRESS P TO RESUME', canvas.width / 2, canvas.height / 3 + 40);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`SCORE: ${score.toLocaleString()}`, 50, canvas.height - 120);
+    ctx.fillText(`LEVEL: ${level}`, 50, canvas.height - 100);
+    ctx.fillText(`LIVES: ${lives}`, 50, canvas.height - 80);
+    
+    // Right-aligned stats
+    ctx.textAlign = 'right';
+    ctx.fillText(`ASTEROIDS: ${asteroids.length}`, canvas.width - 50, canvas.height - 120);
+    ctx.fillText(`ALIENS: ${aliens.length}`, canvas.width - 50, canvas.height - 100);
+    if (battlestar) {
+        ctx.fillText('BATTLESTAR: ACTIVE', canvas.width - 50, canvas.height - 80);
+    }
+    
+    // Reset text alignment
+    ctx.textAlign = 'center';
+    
+    // Show debug info if enabled
+    if (showDebugInfo) {
+        drawDebugInfo();
+    }
 }
 
 // Modify the keydown event handler to handle initials entry and log toggle
@@ -1470,6 +1593,51 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
+    // Toggle alien testing mode with 'T' key (for testing)
+    if ((e.key === 't' || e.key === 'T') && gameStarted) {
+        forceAliensInLevel1 = !forceAliensInLevel1;
+        addLogMessage('DEBUG: Alien testing mode ' + (forceAliensInLevel1 ? 'enabled' : 'disabled'));
+        if (forceAliensInLevel1) {
+            // Force spawn an alien immediately for testing
+            if (aliens.length < ALIEN_MAX_COUNT) {
+                createAlien();
+                addLogMessage('DEBUG: Test alien spawned');
+            }
+        }
+        return;
+    }
+
+    // Test sound system with 'S' key (for debugging)
+    if ((e.key === 's' || e.key === 'S') && gameStarted) {
+        const soundCount = soundNodes ? Object.keys(soundNodes).length : 0;
+        const audioState = audioContext ? audioContext.state : 'null';
+        addLogMessage(`DEBUG: Sound nodes: ${soundCount}, Audio state: ${audioState}`);
+        
+        // Test all sound types
+        playSound('fire');
+        setTimeout(() => playSound('bangSmall'), 200);
+        setTimeout(() => playSound('bangMedium'), 400);
+        setTimeout(() => playSound('bangLarge'), 600);
+        setTimeout(() => playSound('alienSpawn'), 800);
+        setTimeout(() => playSound('alienFire'), 1000);
+        
+        return;
+    }
+
+    // Reset audio context with 'R' key (for debugging)
+    if ((e.key === 'r' || e.key === 'R') && gameStarted) {
+        addLogMessage('DEBUG: Resetting audio context...');
+        resetAudioContext();
+        return;
+    }
+
+    // Toggle debug info display with 'D' key
+    if ((e.key === 'd' || e.key === 'D') && gameStarted) {
+        showDebugInfo = !showDebugInfo;
+        addLogMessage('DEBUG: Debug info ' + (showDebugInfo ? 'enabled' : 'disabled'));
+        return;
+    }
+
     // If release notes are showing, only handle scrolling
     if (showingReleaseNotes) {
         if (e.key === 'ArrowUp') {
@@ -1491,14 +1659,44 @@ window.addEventListener('keydown', (e) => {
     
     // Toggle pause with 'p' key when game is active
     if ((e.key === 'p' || e.key === 'P') && gameStarted) {
+        // Don't allow pausing during ship respawn or game over
+        if (shipRespawnTimer > 0 || enteringInitials) {
+            return;
+        }
+        
         gamePaused = !gamePaused;
+        
+        // Remember if user manually paused (not auto-paused)
+        if (gamePaused) {
+            wasPausedBeforeFocus = true;
+        }
+        
         addLogMessage('Game ' + (gamePaused ? 'paused' : 'resumed'));
         
-        // If resuming, play a sound for feedback
-        if (!gamePaused) {
-            playSound('bangSmall');
+        // Play different sounds for pause/resume
+        if (gamePaused) {
+            playSound('bangSmall'); // Pause sound
+        } else {
+            playSound('fire'); // Resume sound
         }
         return;
+    }
+    
+    // Handle pause menu options
+    if (gamePaused && gameStarted) {
+        if (e.key === 'a' || e.key === 'A') {
+            // Toggle auto-pause preference
+            try {
+                const currentPref = localStorage.getItem('smashteroids_autoPause');
+                const newPref = currentPref === 'false' ? 'true' : 'false';
+                localStorage.setItem('smashteroids_autoPause', newPref);
+                addLogMessage('Auto-pause ' + (newPref === 'true' ? 'enabled' : 'disabled'));
+                playSound('bangSmall');
+            } catch (e) {
+                addLogMessage('Failed to save preference');
+            }
+            return;
+        }
     }
     
     if (enteringInitials) {
@@ -1681,11 +1879,103 @@ function loadSounds() {
 let thrustNode = null;
 let thrustOscillator = null;
 
+// Sound cleanup function to prevent resource exhaustion
+function cleanupSoundNodes() {
+    if (!soundNodes) return;
+    
+    const now = Date.now();
+    const maxAge = 5000; // 5 seconds max age for sound nodes
+    
+    Object.keys(soundNodes).forEach(key => {
+        const node = soundNodes[key];
+        if (node && node._createdAt && (now - node._createdAt) > maxAge) {
+            try {
+                node.disconnect();
+                node.port.postMessage({ stop: true });
+                delete soundNodes[key];
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+        }
+    });
+    
+    // Also clean up thrust node if it's been inactive too long
+    if (thrustNode && thrustNode._createdAt && (now - thrustNode._createdAt) > 10000) {
+        try {
+            thrustNode.disconnect();
+            thrustNode.port.postMessage({ stop: true });
+            thrustNode = null;
+        } catch (e) {
+            // Ignore cleanup errors
+        }
+    }
+}
+
+// Reset audio context if it gets into a bad state
+function resetAudioContext() {
+    try {
+        // Clean up existing nodes
+        if (soundNodes) {
+            Object.values(soundNodes).forEach(node => {
+                try {
+                    node.disconnect();
+                    node.port.postMessage({ stop: true });
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+            });
+            soundNodes = {};
+        }
+        
+        // Clean up thrust node
+        if (thrustNode) {
+            try {
+                thrustNode.disconnect();
+                thrustNode.port.postMessage({ stop: true });
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+            thrustNode = null;
+        }
+        
+        // Close old context if it exists
+        if (audioContext && audioContext.state !== 'closed') {
+            audioContext.close();
+        }
+        
+        // Create new context
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Reload AudioWorklet
+        const timestamp = new Date().getTime();
+        audioContext.audioWorklet.addModule(`audioWorklet.js?v=${timestamp}`)
+            .then(() => {
+                addLogMessage('Audio context reset successfully');
+            })
+            .catch(error => {
+                console.error('Failed to reload AudioWorklet:', error);
+                addLogMessage('Audio reset failed: ' + error.message);
+            });
+            
+    } catch (e) {
+        console.error('Failed to reset audio context:', e);
+        addLogMessage('Audio reset error: ' + e.message);
+    }
+}
+
 // Play or stop the thrust sound
 function playThrustSound(play) {
     if (!audioContext) {
         console.error('Audio context not available for thrust sound');
         return;
+    }
+    
+    // Check if audio context is suspended and try to resume
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(err => {
+            console.error('Failed to resume audio context:', err);
+            return;
+        });
     }
     
     try {
@@ -1714,16 +2004,35 @@ function playThrustSound(play) {
                 soundNodes = {};
             }
             soundNodes.thrust = thrustNode;
+            thrustNode._createdAt = Date.now(); // Add timestamp for cleanup
         } else {
             // Stop thrust sound
             if (thrustNode) {
-                thrustNode.port.postMessage({ stop: true });
-                thrustNode.disconnect();
+                try {
+                    thrustNode.port.postMessage({ stop: true });
+                    thrustNode.disconnect();
+                    if (soundNodes && soundNodes.thrust === thrustNode) {
+                        delete soundNodes.thrust;
+                    }
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
                 thrustNode = null;
             }
         }
     } catch (e) {
-        // ... existing code ...
+        console.error('Error with thrust sound:', e);
+        addLogMessage('Thrust sound error: ' + e.message);
+        
+        // Try to recover audio context if it failed
+        if (audioContext && audioContext.state === 'closed') {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                addLogMessage('Audio context recreated');
+            } catch (recreateError) {
+                console.error('Failed to recreate audio context:', recreateError);
+            }
+        }
     }
 }
 
@@ -1735,7 +2044,25 @@ function playSound(soundType) {
         return;
     }
     
+    // Check if audio context is suspended and try to resume
+    if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(err => {
+            console.error('Failed to resume audio context:', err);
+            return;
+        });
+    }
+    
     try {
+        // Clean up any existing sound node of this type
+        if (soundNodes && soundNodes[soundType]) {
+            try {
+                soundNodes[soundType].disconnect();
+                soundNodes[soundType].port.postMessage({ stop: true });
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+        }
+        
         // Create a new AudioWorkletNode for each sound
         const soundNode = new AudioWorkletNode(audioContext, 'sound-generator');
         
@@ -1766,14 +2093,34 @@ function playSound(soundType) {
             soundNodes = {};
         }
         soundNodes[soundType] = soundNode;
+        soundNode._createdAt = Date.now(); // Add timestamp for cleanup
+        
+        // Set up automatic cleanup after sound duration
+        const cleanupTime = (message.duration || 1.0) * 1000 + 100; // Add 100ms buffer
+        setTimeout(() => {
+            if (soundNodes && soundNodes[soundType] === soundNode) {
+                try {
+                    soundNode.disconnect();
+                    soundNode.port.postMessage({ stop: true });
+                    delete soundNodes[soundType];
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+            }
+        }, cleanupTime);
         
     } catch (e) {
         console.error('Error playing sound:', e);
-        // Fallback to original implementation
-        try {
-            // ... existing code ...
-        } catch (innerError) {
-            // ... existing code ...
+        addLogMessage('Sound error: ' + e.message);
+        
+        // Try to recover audio context if it failed
+        if (audioContext && audioContext.state === 'closed') {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                addLogMessage('Audio context recreated');
+            } catch (recreateError) {
+                console.error('Failed to recreate audio context:', recreateError);
+            }
         }
     }
 }
@@ -3144,6 +3491,14 @@ function drawGameInfo() {
     ctx.textAlign = 'center';
     ctx.fillText(`Level: ${level}`, canvas.width / 2, 25);
     
+    // Show pause indicator if game is paused
+    if (gamePaused) {
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText('PAUSED', canvas.width / 2, 45);
+        ctx.fillStyle = 'white'; // Reset color
+    }
+    
     // Draw lives as ship icons
     ctx.textAlign = 'right';
     ctx.fillText('Lives:', canvas.width - 20 - (lives * 30), 25);
@@ -3274,7 +3629,20 @@ function submitHighScore(initials, score) {
     const gameData = {
         level: level,
         timestamp: Date.now(),
-        timePlayed: Date.now() - lastScoreSubmitTime
+        timePlayed: Date.now() - lastScoreSubmitTime,
+        // Add more verification data
+        lives: lives,
+        asteroidsDestroyed: asteroidsDestroyed || 0,
+        aliensDestroyed: aliensDestroyed || 0,
+        bulletsFired: bulletsFired || 0,
+        gameVersion: '1.2.0', // For version tracking
+        sessionId: sessionId || Date.now().toString(36), // Unique session identifier
+        // Add client fingerprint for additional verification
+        clientInfo: {
+            userAgent: navigator.userAgent,
+            screenSize: `${screen.width}x${screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
     };
     
     // Update last submit time
@@ -3509,7 +3877,7 @@ function createAliens() {
 // Update alien ships' behavior and state
 function updateAliens() {
     // Only spawn new aliens if we're past level 1, but still allow updating existing aliens
-    if (level <= 1) {
+    if (level <= 1 && !forceAliensInLevel1) {
         // Skip automatic spawning in level 1, but continue to allow manually created aliens to be updated
         // This allows debug-spawned aliens to work properly in level 1
     } else {
@@ -3671,22 +4039,21 @@ function createAlien() {
     const alien = {
         x,
         y,
-        radius: 20,
-        speedX: 0,
-        speedY: 0,
-        baseSpeed, // Store the adjusted speed
-        targetX: 0,
-        targetY: 0,
-        lastDirectionChange: performance.now(),
-        directionChangeInterval: 2000 + Math.random() * 2000,
-        fireTimer: 0, // Initialize fire timer instead of lastShot
-        fireRate, // Store the adjusted fire rate
-        fireSpread: Math.min(0.3, 0.15 + (level - 2) * 0.05), // Spread increases with level
-        health: 1 + Math.floor((level - 1) / 3), // Increase health every 3 levels
-        hitTime: 0,
-        scoreValue: 500 * (1 + Math.floor((level - 1) / 2)), // Increase score value
-        active: true, // Add active property
-        invulnerable: false // Add invulnerable property
+        dx: 0, // Initial velocity X
+        dy: 0, // Initial velocity Y
+        angle: Math.random() * Math.PI * 2, // Random initial angle
+        rotation: 0, // Current rotation speed
+        targetAngle: Math.random() * Math.PI * 2, // Target angle for rotation
+        fireTimer: 0, // Fire timer for shooting
+        directionTimer: 0, // Timer for direction changes
+        active: true, // Active state
+        thrusting: Math.random() < 0.7, // 70% chance to be thrusting initially
+        spawnTime: ALIEN_SPAWN_EFFECT_DURATION, // Spawn animation timer
+        scale: 0, // Initial scale for spawn effect
+        invulnerable: true, // Start invulnerable
+        invulnerableTime: ALIEN_INVULNERABILITY_TIME, // Invulnerability timer
+        health: 1 + Math.floor((level - 1) / 3), // Health increases every 3 levels
+        scoreValue: 500 * (1 + Math.floor((level - 1) / 2)) // Score value increases every 2 levels
     };
     
     // Set initial target for alien to move toward
@@ -3786,7 +4153,16 @@ function updateAlienBullets() {
         bullet.pulsePhase = (bullet.pulsePhase + ALIEN_BULLET_PULSE_SPEED * 60 * deltaTime) % (Math.PI * 2);
         bullet.size = ALIEN_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
 
-        // Remove if off screen
+        // Update lifetime
+        if (bullet.lifetime !== undefined) {
+            bullet.lifetime -= 60 * deltaTime;
+            if (bullet.lifetime <= 0) {
+                bullet.active = false;
+                continue;
+            }
+        }
+
+        // Remove if off screen (fallback for bullets without lifetime)
         if (bullet.x < 0 || bullet.x > canvas.width || 
             bullet.y < 0 || bullet.y > canvas.height) {
             bullet.active = false;
@@ -5280,3 +5656,97 @@ function updateAliens() {
         }
     });
 }  
+
+// Draw debug information on screen
+function drawDebugInfo() {
+    if (!showDebugInfo) return;
+    
+    // Semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(10, 10, 300, 200);
+    
+    // Border
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(10, 10, 300, 200);
+    
+    // Debug text
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = '12px "Press Start 2P"';
+    ctx.textAlign = 'left';
+    
+    let y = 30;
+    const lineHeight = 18;
+    
+    // Audio info
+    const soundCount = soundNodes ? Object.keys(soundNodes).length : 0;
+    const audioState = audioContext ? audioContext.state : 'null';
+    const sampleRate = audioContext ? audioContext.sampleRate : 0;
+    
+    ctx.fillText(`AUDIO DEBUG INFO:`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Sound Nodes: ${soundCount}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Audio State: ${audioState}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Sample Rate: ${sampleRate}Hz`, 20, y);
+    y += lineHeight;
+    
+    // Sound node breakdown
+    if (soundNodes && soundCount > 0) {
+        ctx.fillText(`Node Types:`, 20, y);
+        y += lineHeight;
+        Object.keys(soundNodes).forEach(key => {
+            const node = soundNodes[key];
+            const age = node._createdAt ? Math.round((Date.now() - node._createdAt) / 1000) : '?';
+            ctx.fillText(`  ${key}: ${age}s old`, 20, y);
+            y += lineHeight;
+        });
+    }
+    
+    // Game state info
+    ctx.fillText(`GAME STATE:`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Level: ${level}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Score: ${score}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Lives: ${lives}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Frame: ${frameCount}`, 20, y);
+    y += lineHeight;
+    
+    // Object counts
+    ctx.fillText(`OBJECTS:`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Asteroids: ${asteroids.length}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Aliens: ${aliens.length}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Bullets: ${bullets.length}`, 20, y);
+    y += lineHeight;
+    ctx.fillText(`Alien Bullets: ${alienBullets.length}`, 20, y);
+    y += lineHeight;
+    
+    // Performance info
+    const fps = deltaTime > 0 ? Math.round(1 / deltaTime) : 0;
+    ctx.fillText(`FPS: ${fps}`, 20, y);
+    y += lineHeight;
+    
+    // Controls hint
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+    ctx.fillText(`Press D to hide`, 20, y);
+}
+
+// Game state variables
+let gameStarted = false;
+let gamePaused = false;
+let gameOver = false;
+let level = 1;
+let score = 0;
+let lives = 3;
+let asteroidsDestroyed = 0;
+let aliensDestroyed = 0;
+let bulletsFired = 0;
+let sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+let lastScoreSubmitTime = Date.now();

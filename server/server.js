@@ -8,6 +8,23 @@ const port = process.env.PORT || 3000; // Use Heroku's PORT environment variable
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public'))); // Serve game files from public directory
 
+// Security headers middleware
+app.use((req, res, next) => {
+    // Prevent clickjacking
+    res.setHeader('X-Frame-Options', 'DENY');
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Enable XSS protection
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    // Strict transport security (for HTTPS)
+    if (process.env.NODE_ENV === 'production') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    // Content Security Policy
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+    next();
+});
+
 // In-memory high scores
 let highScores = [];
 const HIGH_SCORE_COUNT = 15; // Store more scores for a larger leaderboard
@@ -51,54 +68,136 @@ if (isHeroku) {
     }
 }
 
+// Rate limiting storage
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_SUBMISSIONS_PER_WINDOW = 3; // Max 3 submissions per minute per IP
+
+// Rate limiting middleware
+function rateLimit(req, res, next) {
+    const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+    const now = Date.now();
+    
+    // Clean old entries
+    for (const [ip, data] of rateLimitStore.entries()) {
+        if (now - data.timestamp > RATE_LIMIT_WINDOW) {
+            rateLimitStore.delete(ip);
+        }
+    }
+    
+    // Check rate limit
+    const clientData = rateLimitStore.get(clientIP);
+    if (clientData) {
+        if (clientData.count >= MAX_SUBMISSIONS_PER_WINDOW) {
+            return res.status(429).json({ 
+                error: 'Too many submissions. Please wait before submitting again.',
+                retryAfter: Math.ceil((RATE_LIMIT_WINDOW - (now - clientData.timestamp)) / 1000)
+            });
+        }
+        clientData.count++;
+    } else {
+        rateLimitStore.set(clientIP, { count: 1, timestamp: now });
+    }
+    
+    next();
+}
+
 // Get high scores
 app.get('/api/highscores', (req, res) => {
     res.json(highScores);
 });
 
 // Submit a high score
-app.post('/api/highscores', (req, res) => {
+app.post('/api/highscores', rateLimit, (req, res) => {
     const { initials, score, gameData } = req.body;
     
     // Add detailed logging for debugging
     console.log('Received highscore submission:');
     console.log('Initials:', initials);
     console.log('Score:', score, typeof score);
-    console.log('Request body:', req.body);
+    console.log('Game Data:', gameData);
+    console.log('IP:', req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for']);
     
-    // Basic validation
+    // Enhanced validation
     if (!initials || score === undefined || score === null || typeof score !== 'number') {
         console.log('Validation failed: Missing initials or score, or score is not a number');
         return res.status(400).json({ error: 'Invalid score data' });
     }
     
-    // Simple validation to prevent unreasonable scores
-    if (score < 0 || score > 1000000) {
-        console.log('Validation failed: Score out of valid range:', score);
-        return res.status(400).json({ error: 'Score out of valid range' });
+    // More sophisticated score validation
+    if (score < 0) {
+        console.log('Validation failed: Negative score:', score);
+        return res.status(400).json({ error: 'Score cannot be negative' });
     }
     
-    // Sanitize initials
-    // 1. Convert to upper case so lowercase letters are accepted
-    // 2. Remove any characters outside A-Z
-    // 3. Limit to the first 3 characters
+    // Dynamic score limit based on game data
+    let maxScore = 1000000; // Default max
+    if (gameData && gameData.level) {
+        // Estimate reasonable max score based on level
+        // Level 1: ~5000, Level 10: ~50000, etc.
+        maxScore = Math.min(1000000, gameData.level * 5000);
+    }
+    
+    if (score > maxScore) {
+        console.log('Validation failed: Score exceeds reasonable limit:', score, 'max:', maxScore);
+        return res.status(400).json({ 
+            error: 'Score exceeds reasonable limit for this level',
+            maxScore: maxScore
+        });
+    }
+    
+    // Validate game data consistency
+    if (gameData) {
+        // Check if level and score are consistent
+        if (gameData.level && gameData.level > 0) {
+            const expectedMinScore = (gameData.level - 1) * 1000; // Minimum expected score for level
+            if (score < expectedMinScore) {
+                console.log('Validation failed: Score too low for level:', score, 'level:', gameData.level);
+                return res.status(400).json({ 
+                    error: 'Score too low for claimed level',
+                    expectedMinScore: expectedMinScore
+                });
+            }
+        }
+        
+        // Check timestamp consistency
+        if (gameData.timestamp) {
+            const submissionTime = Date.now();
+            const gameTime = gameData.timestamp;
+            const timeDiff = Math.abs(submissionTime - gameTime);
+            
+            // Allow 5 minute window for submission
+            if (timeDiff > 5 * 60 * 1000) {
+                console.log('Validation failed: Timestamp too old:', timeDiff, 'ms');
+                return res.status(400).json({ error: 'Game session too old' });
+            }
+        }
+    }
+    
+    // Sanitize initials with enhanced validation
     const sanitizedInitials = (initials || '')
         .toUpperCase()
         .replace(/[^A-Z]/g, '')
         .substring(0, 3);
 
-    // Ensure we still have at least one valid character after sanitising
     if (!sanitizedInitials) {
         console.log('Validation failed: initials contain no valid characters');
         return res.status(400).json({ error: 'Invalid initials' });
     }
     
-    // Add new score with timestamp
+    // Check for suspicious patterns
+    if (sanitizedInitials === 'AAA' || sanitizedInitials === 'XXX' || sanitizedInitials === 'ZZZ') {
+        console.log('Validation failed: Suspicious initials pattern:', sanitizedInitials);
+        return res.status(400).json({ error: 'Suspicious initials pattern' });
+    }
+    
+    // Add new score with enhanced metadata
     const newScore = { 
         initials: sanitizedInitials, 
         score, 
         timestamp: Date.now(),
-        // Optionally store game data for verification or statistics
+        ip: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+        userAgent: req.headers['user-agent'],
         gameData: gameData || {}
     };
     
