@@ -21,7 +21,7 @@ app.use((req, res, next) => {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     // Content Security Policy
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; child-src 'self' blob:;");
     next();
 });
 
@@ -105,6 +105,74 @@ function rateLimit(req, res, next) {
 // Get high scores
 app.get('/api/highscores', (req, res) => {
     res.json(highScores);
+});
+
+// Debug route to check AudioWorklet file availability
+app.get('/api/debug/audioworklet', (req, res) => {
+    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
+    try {
+        if (fs.existsSync(audioWorkletPath)) {
+            const stats = fs.statSync(audioWorkletPath);
+            res.json({
+                exists: true,
+                size: stats.size,
+                lastModified: stats.mtime,
+                path: audioWorkletPath
+            });
+        } else {
+            res.json({
+                exists: false,
+                path: audioWorkletPath
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            error: error.message,
+            path: audioWorkletPath
+        });
+    }
+});
+
+// Serve AudioWorklet with correct MIME type
+app.get('/audioWorklet.js', (req, res) => {
+    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(audioWorkletPath);
+});
+
+// Test route to verify AudioWorklet setup
+app.get('/api/test/audioworklet', (req, res) => {
+    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
+    try {
+        if (fs.existsSync(audioWorkletPath)) {
+            const content = fs.readFileSync(audioWorkletPath, 'utf8');
+            const hasProcessor = content.includes('AudioWorkletProcessor');
+            const hasRegister = content.includes('registerProcessor');
+            
+            res.json({
+                status: 'success',
+                fileExists: true,
+                hasAudioWorkletProcessor: hasProcessor,
+                hasRegisterProcessor: hasRegister,
+                fileSize: content.length,
+                firstLine: content.split('\n')[0]
+            });
+        } else {
+            res.json({
+                status: 'error',
+                fileExists: false,
+                message: 'AudioWorklet file not found'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: error.message
+        });
+    }
 });
 
 // Submit a high score

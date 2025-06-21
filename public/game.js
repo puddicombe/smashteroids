@@ -1868,7 +1868,10 @@ function loadSounds() {
         
         // Load the AudioWorklet module
         const timestamp = new Date().getTime();
-        audioContext.audioWorklet.addModule(`audioWorklet.js?v=${timestamp}`)
+        const audioWorkletUrl = `audioWorklet.js?v=${timestamp}`;
+        console.log('Attempting to load AudioWorklet from:', audioWorkletUrl);
+        
+        audioContext.audioWorklet.addModule(audioWorkletUrl)
             .then(() => {
                 // Mark AudioWorklet as loaded
                 window.audioWorkletLoaded = true;
@@ -1881,8 +1884,29 @@ function loadSounds() {
             })
             .catch(error => {
                 console.error('Failed to load AudioWorklet:', error);
+                console.error('AudioWorklet URL attempted:', audioWorkletUrl);
+                console.error('AudioContext state:', audioContext.state);
+                console.error('AudioContext sample rate:', audioContext.sampleRate);
                 addLogMessage('Audio system failed to load: ' + error.message);
                 window.audioWorkletLoaded = false;
+                
+                // Set up fallback sound objects that do nothing
+                soundFX = {
+                    fire: { play: () => console.log('Audio disabled: fire sound') },
+                    thrust: { 
+                        play: () => console.log('Audio disabled: thrust sound'),
+                        pause: () => console.log('Audio disabled: thrust stop'),
+                        currentTime: 0
+                    },
+                    bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
+                    bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
+                    bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
+                    explode: { play: () => console.log('Audio disabled: explode sound') },
+                    alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
+                    alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
+                };
+                
+                addLogMessage('Game will run without audio effects');
             });
     } catch (e) {
         // ... existing code ...
