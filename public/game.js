@@ -1873,79 +1873,97 @@ function loadSounds() {
         console.log('AudioContext state before loading:', audioContext.state);
         console.log('AudioContext sample rate:', audioContext.sampleRate);
         
-        audioContext.audioWorklet.addModule(audioWorkletUrl)
-            .then(() => {
-                // Mark AudioWorklet as loaded
-                window.audioWorkletLoaded = true;
-                console.log('AudioWorklet loaded successfully');
-                addLogMessage('Audio system initialized');
-                
-                // Level start sound (triumphant rising tone)
-                levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
-                // ... existing code ...
-            })
-            .catch(error => {
-                console.error('Failed to load AudioWorklet:', error);
-                console.error('Error name:', error.name);
-                console.error('Error message:', error.message);
-                console.error('Error stack:', error.stack);
-                console.error('AudioWorklet URL attempted:', audioWorkletUrl);
-                console.error('AudioContext state:', audioContext.state);
-                console.error('AudioContext sample rate:', audioContext.sampleRate);
-                console.error('Current page URL:', window.location.href);
-                console.error('User agent:', navigator.userAgent);
-                
-                // Try to fetch the AudioWorklet file directly to see if it's accessible
-                fetch(audioWorkletUrl)
-                    .then(response => {
-                        console.log('AudioWorklet fetch response status:', response.status);
-                        console.log('AudioWorklet fetch response headers:', response.headers);
-                        return response.text();
-                    })
-                    .then(text => {
-                        console.log('AudioWorklet file content length:', text.length);
-                        console.log('AudioWorklet file first 100 chars:', text.substring(0, 100));
-                    })
-                    .catch(fetchError => {
-                        console.error('Failed to fetch AudioWorklet file:', fetchError);
-                    });
-                
-                // Try fallback URL without query parameter
-                console.log('Trying fallback AudioWorklet URL...');
-                audioContext.audioWorklet.addModule('audioWorklet.js')
-                    .then(() => {
-                        window.audioWorkletLoaded = true;
-                        console.log('AudioWorklet loaded successfully with fallback URL');
-                        addLogMessage('Audio system initialized (fallback)');
-                        
-                        // Level start sound (triumphant rising tone)
-                        levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
-                        // ... existing code ...
-                    })
-                    .catch(fallbackError => {
-                        console.error('Fallback AudioWorklet loading also failed:', fallbackError);
-                        addLogMessage('Audio system failed to load: ' + error.message);
-                        window.audioWorkletLoaded = false;
-                        
-                        // Set up fallback sound objects that do nothing
-                        soundFX = {
-                            fire: { play: () => console.log('Audio disabled: fire sound') },
-                            thrust: { 
-                                play: () => console.log('Audio disabled: thrust sound'),
-                                pause: () => console.log('Audio disabled: thrust stop'),
-                                currentTime: 0
-                            },
-                            bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
-                            bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
-                            bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
-                            explode: { play: () => console.log('Audio disabled: explode sound') },
-                            alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
-                            alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
-                        };
-                        
-                        addLogMessage('Game will run without audio effects');
-                    });
+        function loadAudioWorklet() {
+            audioContext.audioWorklet.addModule(audioWorkletUrl)
+                .then(() => {
+                    // Mark AudioWorklet as loaded
+                    window.audioWorkletLoaded = true;
+                    console.log('AudioWorklet loaded successfully');
+                    addLogMessage('Audio system initialized');
+                    
+                    // Level start sound (triumphant rising tone)
+                    levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
+                    // ... existing code ...
+                })
+                .catch(error => {
+                    console.error('Failed to load AudioWorklet:', error);
+                    console.error('Error name:', error.name);
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+                    console.error('AudioWorklet URL attempted:', audioWorkletUrl);
+                    console.error('AudioContext state:', audioContext.state);
+                    console.error('AudioContext sample rate:', audioContext.sampleRate);
+                    console.error('Current page URL:', window.location.href);
+                    console.error('User agent:', navigator.userAgent);
+                    
+                    // Try to fetch the AudioWorklet file directly to see if it's accessible
+                    fetch(audioWorkletUrl)
+                        .then(response => {
+                            console.log('AudioWorklet fetch response status:', response.status);
+                            console.log('AudioWorklet fetch response headers:', response.headers);
+                            return response.text();
+                        })
+                        .then(text => {
+                            console.log('AudioWorklet file content length:', text.length);
+                            console.log('AudioWorklet file first 100 chars:', text.substring(0, 100));
+                        })
+                        .catch(fetchError => {
+                            console.error('Failed to fetch AudioWorklet file:', fetchError);
+                        });
+                    
+                    // Try fallback URL without query parameter
+                    console.log('Trying fallback AudioWorklet URL...');
+                    audioContext.audioWorklet.addModule('audioWorklet.js')
+                        .then(() => {
+                            window.audioWorkletLoaded = true;
+                            console.log('AudioWorklet loaded successfully with fallback URL');
+                            addLogMessage('Audio system initialized (fallback)');
+                            
+                            // Level start sound (triumphant rising tone)
+                            levelStartNode = new AudioWorkletNode(audioContext, 'sound-generator');
+                            // ... existing code ...
+                        })
+                        .catch(fallbackError => {
+                            console.error('Fallback AudioWorklet loading also failed:', fallbackError);
+                            addLogMessage('Audio system failed to load: ' + error.message);
+                            window.audioWorkletLoaded = false;
+                            
+                            // Set up fallback sound objects that do nothing
+                            soundFX = {
+                                fire: { play: () => console.log('Audio disabled: fire sound') },
+                                thrust: { 
+                                    play: () => console.log('Audio disabled: thrust sound'),
+                                    pause: () => console.log('Audio disabled: thrust stop'),
+                                    currentTime: 0
+                                },
+                                bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
+                                bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
+                                bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
+                                explode: { play: () => console.log('Audio disabled: explode sound') },
+                                alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
+                                alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
+                            };
+                            
+                            addLogMessage('Game will run without audio effects');
+                        });
+                });
+        }
+        
+        // If AudioContext is suspended, try to resume it first
+        if (audioContext.state === 'suspended') {
+            console.log('AudioContext is suspended, attempting to resume...');
+            audioContext.resume().then(() => {
+                console.log('AudioContext resumed successfully, state:', audioContext.state);
+                loadAudioWorklet();
+            }).catch(err => {
+                console.error('Failed to resume AudioContext:', err);
+                // Try loading AudioWorklet anyway
+                loadAudioWorklet();
             });
+        } else {
+            loadAudioWorklet();
+        }
+        
     } catch (e) {
         // ... existing code ...
     }
