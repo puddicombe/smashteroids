@@ -6,6 +6,20 @@ const port = process.env.PORT || 3000; // Use Heroku's PORT environment variable
 
 // Add middleware
 app.use(express.json());
+
+// Serve AudioWorklet with correct MIME type - must come before static middleware
+app.get('/audioWorklet.js', (req, res) => {
+    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.sendFile(audioWorkletPath);
+});
+
 app.use(express.static(path.join(__dirname, '../public'))); // Serve game files from public directory
 
 // Security headers middleware
@@ -20,8 +34,8 @@ app.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    // Content Security Policy
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; child-src 'self' blob:;");
+    // Content Security Policy - configured for AudioWorklet compatibility
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; child-src 'self' blob:; connect-src 'self';");
     next();
 });
 
@@ -133,16 +147,6 @@ app.get('/api/debug/audioworklet', (req, res) => {
     }
 });
 
-// Serve AudioWorklet with correct MIME type
-app.get('/audioWorklet.js', (req, res) => {
-    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
-    res.setHeader('Content-Type', 'application/javascript');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.sendFile(audioWorkletPath);
-});
-
 // Test route to verify AudioWorklet setup
 app.get('/api/test/audioworklet', (req, res) => {
     const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
@@ -159,6 +163,41 @@ app.get('/api/test/audioworklet', (req, res) => {
                 hasRegisterProcessor: hasRegister,
                 fileSize: content.length,
                 firstLine: content.split('\n')[0]
+            });
+        } else {
+            res.json({
+                status: 'error',
+                fileExists: false,
+                message: 'AudioWorklet file not found'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({
+            status: 'error',
+            message: error.message
+        });
+    }
+});
+
+// Test route to check AudioWorklet MIME type and headers
+app.get('/api/test/audioworklet-headers', (req, res) => {
+    const audioWorkletPath = path.join(__dirname, '../public/audioWorklet.js');
+    try {
+        if (fs.existsSync(audioWorkletPath)) {
+            const stats = fs.statSync(audioWorkletPath);
+            const content = fs.readFileSync(audioWorkletPath, 'utf8');
+            
+            res.json({
+                status: 'success',
+                fileExists: true,
+                fileSize: stats.size,
+                lastModified: stats.mtime,
+                contentType: 'application/javascript',
+                contentLength: content.length,
+                hasAudioWorkletProcessor: content.includes('AudioWorkletProcessor'),
+                hasRegisterProcessor: content.includes('registerProcessor'),
+                firstLine: content.split('\n')[0],
+                lastLine: content.split('\n').slice(-1)[0]
             });
         } else {
             res.json({
