@@ -3059,6 +3059,32 @@ function checkCollisions() {
             }
         }
     }
+    
+    // Check alien bullet collisions with asteroids
+    for (let i = alienBullets.length - 1; i >= 0; i--) {
+        const alienBullet = alienBullets[i];
+        
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+            const asteroid = asteroids[j];
+            
+            if (distBetweenPoints(alienBullet.x, alienBullet.y, asteroid.x, asteroid.y) < asteroid.radius) {
+                // Calculate collision angle for debris direction
+                const collisionAngle = Math.atan2(alienBullet.y - asteroid.y, alienBullet.x - asteroid.x);
+                
+                // Remove alien bullet
+                alienBullets.splice(i, 1);
+                
+                // Destroy asteroid
+                destroyAsteroid(j, collisionAngle);
+                
+                // Play sound
+                playSound('bangSmall');
+                
+                // Break out of asteroid loop since bullet is destroyed
+                break;
+            }
+        }
+    }
 }
 
 // Add collision effect function
