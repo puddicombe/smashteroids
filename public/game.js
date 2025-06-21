@@ -2886,8 +2886,16 @@ function updateBullets() {
         // Check collision with asteroids
         for (let j = asteroids.length - 1; j >= 0; j--) {
             if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
-                bullets.splice(i, 1);
-                destroyAsteroid(j);
+                bullet.active = false;
+                
+                // Calculate collision angle for debris direction
+                const collisionAngle = Math.atan2(bullet.y - asteroids[j].y, bullet.x - asteroids[j].x);
+                
+                // Destroy the asteroid
+                destroyAsteroid(j, collisionAngle);
+                
+                // Play sound
+                playSound('bangSmall');
                 break;
             }
         }
@@ -4367,7 +4375,15 @@ function updateAlienBullets() {
         for (let j = asteroids.length - 1; j >= 0; j--) {
             if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
                 bullet.active = false;
-                destroyAsteroid(j);
+                
+                // Calculate collision angle for debris direction
+                const collisionAngle = Math.atan2(bullet.y - asteroids[j].y, bullet.x - asteroids[j].x);
+                
+                // Destroy the asteroid
+                destroyAsteroid(j, collisionAngle);
+                
+                // Play sound
+                playSound('bangSmall');
                 break;
             }
         }
@@ -5342,20 +5358,14 @@ function updateBattlestarBullets() {
         for (let j = asteroids.length - 1; j >= 0; j--) {
             if (distBetweenPoints(bullet.x, bullet.y, asteroids[j].x, asteroids[j].y) < asteroids[j].radius) {
                 bullet.active = false;
-                // Don't destroy the asteroid - battlestar bullets bounce off
                 
-                // Add ricochet effect
-                battlestarDebris.push({
-                    x: bullet.x,
-                    y: bullet.y,
-                    radius: 1,
-                    maxRadius: 10,
-                    lifetime: 15,
-                    type: 'shockwave',
-                    color: '#FFA500'
-                });
+                // Calculate collision angle for debris direction
+                const collisionAngle = Math.atan2(bullet.y - asteroids[j].y, bullet.x - asteroids[j].x);
                 
-                // Play ricochet sound
+                // Destroy the asteroid
+                destroyAsteroid(j, collisionAngle);
+                
+                // Play sound
                 playSound('bangSmall');
                 break;
             }
