@@ -18,6 +18,10 @@ let ctx;
 let logMessages = [];        // Stores debug/info messages for development and user feedback
 let gameStarted = false;     // Controls game state transitions between menu and gameplay
 let gameLoopRunning = false; // Prevents multiple game loops from running simultaneously
+let asteroidsDestroyed = 0;  // Track asteroids destroyed for score verification
+let aliensDestroyed = 0;     // Track aliens destroyed for score verification
+let bulletsFired = 0;        // Track bullets fired for score verification
+let sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2); // Unique session identifier
 
 // Score animation variables
 let displayScore = 0;
@@ -5738,15 +5742,3 @@ function drawDebugInfo() {
     ctx.fillText(`Press D to hide`, 20, y);
 }
 
-// Game state variables
-let gameStarted = false;
-let gamePaused = false;
-let gameOver = false;
-let level = 1;
-let score = 0;
-let lives = 3;
-let asteroidsDestroyed = 0;
-let aliensDestroyed = 0;
-let bulletsFired = 0;
-let sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-let lastScoreSubmitTime = Date.now();
