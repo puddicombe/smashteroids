@@ -1874,6 +1874,58 @@ function loadSounds() {
         console.log('AudioContext sample rate:', audioContext.sampleRate);
         
         function loadAudioWorklet() {
+            // Check if AudioWorklet is supported
+            console.log('AudioContext object:', audioContext);
+            console.log('AudioContext.audioWorklet:', audioContext.audioWorklet);
+            console.log('AudioContext state:', audioContext.state);
+            console.log('AudioContext constructor name:', audioContext.constructor.name);
+            
+            if (!audioContext.audioWorklet) {
+                console.error('AudioWorklet is not supported in this browser');
+                console.log('Available AudioContext properties:', Object.getOwnPropertyNames(audioContext));
+                
+                // Try creating a new AudioContext with the standard API if we're using webkit
+                if (audioContext.constructor.name === 'webkitAudioContext') {
+                    console.log('Attempting to create standard AudioContext...');
+                    try {
+                        const standardAudioContext = new AudioContext();
+                        if (standardAudioContext.audioWorklet) {
+                            console.log('Standard AudioContext has AudioWorklet support');
+                            audioContext = standardAudioContext;
+                        } else {
+                            console.log('Standard AudioContext also lacks AudioWorklet support');
+                        }
+                    } catch (e) {
+                        console.error('Failed to create standard AudioContext:', e);
+                    }
+                }
+                
+                // If still no AudioWorklet support, use fallback
+                if (!audioContext.audioWorklet) {
+                    addLogMessage('AudioWorklet not supported - using fallback audio');
+                    window.audioWorkletLoaded = false;
+                    
+                    // Set up fallback sound objects that do nothing
+                    soundFX = {
+                        fire: { play: () => console.log('Audio disabled: fire sound') },
+                        thrust: { 
+                            play: () => console.log('Audio disabled: thrust sound'),
+                            pause: () => console.log('Audio disabled: thrust stop'),
+                            currentTime: 0
+                        },
+                        bangLarge: { play: () => console.log('Audio disabled: bangLarge sound') },
+                        bangMedium: { play: () => console.log('Audio disabled: bangMedium sound') },
+                        bangSmall: { play: () => console.log('Audio disabled: bangSmall sound') },
+                        explode: { play: () => console.log('Audio disabled: explode sound') },
+                        alienSpawn: { play: () => console.log('Audio disabled: alienSpawn sound') },
+                        alienFire: { play: () => console.log('Audio disabled: alienFire sound') }
+                    };
+                    
+                    addLogMessage('Game will run without audio effects');
+                    return;
+                }
+            }
+            
             audioContext.audioWorklet.addModule(audioWorkletUrl)
                 .then(() => {
                     // Mark AudioWorklet as loaded
