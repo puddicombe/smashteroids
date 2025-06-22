@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMASHTEROIDS Config Test Runner</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .error { color: #ff4444; }
+        .warning { color: #ffaa00; }
+        .success { color: #44ff44; }
+        .info { color: #4488ff; }
+        button {
+            background: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        .config-display {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 SMASHTEROIDS Configuration Test Runner</h1>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="runValidation()">Run Validation</button>
+        <button onclick="showConfig()">Show Config</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+
+    <!-- Load configuration first -->
+    <script src="GameConfig.js"></script>
+    <!-- Load validation script -->
+    <script src="validate-config.js"></script>
+    
+    <script>
+        function runValidation() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            if (typeof GameConfig === 'undefined') {
+                resultsDiv.innerHTML = '<div class="error">❌ GameConfig not found!</div>';
+                return;
+            }
+            
+            if (typeof validateGameConfig === 'undefined') {
+                resultsDiv.innerHTML = '<div class="error">❌ Validation function not found!</div>';
+                return;
+            }
+            
+            // Run validation
+            const validation = validateGameConfig(GameConfig);
+            
+            // Display results
+            const summaryHtml = `
+                <div class="test-section">
+                    <h2>📊 Validation Results</h2>
+                    <p>Status: <strong>${validation.isValid ? '✅ VALID' : '❌ INVALID'}</strong></p>
+                    <p>Errors: <strong>${validation.errors.length}</strong></p>
+                    <p>Warnings: <strong>${validation.warnings.length}</strong></p>
+                </div>
+            `;
+            resultsDiv.innerHTML += summaryHtml;
+            
+            if (validation.errors.length > 0) {
+                const errorsHtml = `
+                    <div class="test-section">
+                        <h3>❌ Errors</h3>
+                        ${validation.errors.map(error => `<div class="error">${error}</div>`).join('')}
+                    </div>
+                `;
+                resultsDiv.innerHTML += errorsHtml;
+            }
+            
+            if (validation.warnings.length > 0) {
+                const warningsHtml = `
+                    <div class="test-section">
+                        <h3>⚠️ Warnings</h3>
+                        ${validation.warnings.map(warning => `<div class="warning">${warning}</div>`).join('')}
+                    </div>
+                `;
+                resultsDiv.innerHTML += warningsHtml;
+            }
+            
+            if (validation.isValid) {
+                const successHtml = `
+                    <div class="test-section">
+                        <h3>✅ Configuration is Valid!</h3>
+                        <div class="success">All configuration values are within acceptable ranges.</div>
+                    </div>
+                `;
+                resultsDiv.innerHTML += successHtml;
+            }
+        }
+        
+        function showConfig() {
+            const resultsDiv = document.getElementById('results');
+            const configHtml = `
+                <div class="test-section">
+                    <h3>⚙️ Current Configuration</h3>
+                    <div class="config-display">
+                        <pre>${JSON.stringify(GameConfig, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+            resultsDiv.innerHTML = configHtml;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Auto-run validation on page load
+        window.addEventListener('load', () => {
+            console.log('🎮 SMASHTEROIDS Configuration Test Runner loaded');
+            if (typeof GameConfig !== 'undefined' && typeof validateGameConfig !== 'undefined') {
+                console.log('✅ All dependencies loaded successfully');
+                runValidation();
+            } else {
+                console.error('❌ Missing dependencies');
+                document.getElementById('results').innerHTML = 
+                    '<div class="error">❌ Missing dependencies! Make sure GameConfig.js and validate-config.js are loaded.</div>';
+            }
+        });
+    </script>
+</body>
+</html> 

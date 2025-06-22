@@ -10,6 +10,10 @@
  * - Enhanced visual and audio feedback
  */
 
+// Load game configuration
+// Note: In a module system, this would be: import { GameConfig } from './js/config/GameConfig.js';
+// For now, GameConfig is loaded via script tag in index.html
+
 // Initialize canvas for rendering game graphics
 let canvas;
 let ctx;
@@ -28,20 +32,8 @@ let displayScore = 0;
 let targetScore = 0;
 let scoreAnimationSpeed = 5; // Points per frame
 
-// Score pop-up system
+// Score pop-up system - using GameConfig values
 let scorePopups = [];
-const SCORE_POPUP_LIFETIME = 60;  // 1 second at 60fps
-const SCORE_POPUP_SPEED = 2.5;    // Pixels per frame - increased for faster movement
-const SCORE_POPUP_FADE_START = 45; // When to start fading (frames remaining)
-const SCORE_POPUP_BOUNCE_AMPLITUDE = 0.3;
-const SCORE_POPUP_OFFSET_RANGE = 30; // Random horizontal offset range
-
-// Define color palettes for different score values
-const SCORE_COLORS = {
-  small: ['#64DFDF', '#56CBF9', '#7B2CBF'], // Small score palette (blues/purples)
-  medium: ['#FF9F1C', '#FFBF69', '#F4A261'], // Medium score palette (oranges)
-  large: ['#F72585', '#B5179E', '#7209B7']   // Large score palette (pinks/purples)
-};
 
 // Create a score popup at the given position
 function createScorePopup(x, y, points, isLevelBonus = false) {
@@ -51,14 +43,14 @@ function createScorePopup(x, y, points, isLevelBonus = false) {
             x,
             y,
             points,
-            lifetime: SCORE_POPUP_LIFETIME * 3, // Longer lifetime for level bonus
+            lifetime: GameConfig.SCORE.POPUP_LIFETIME * 3, // Longer lifetime for level bonus
             scale: 1.0, // Start smaller
             maxScale: 2.5, // Grow to this size
             opacity: 0, // Start transparent
             rotation: 0,
             bouncePhase: 0,
             isLevelBonus,
-            color: '#FFFF00', // Yellow color for level bonus
+            color: GameConfig.COLORS.LEVEL_BONUS, // Yellow color for level bonus
             offsetX: 0, // No offset for level bonuses
             growTime: 45, // Frames to grow to full size
             holdTime: 90, // Frames to hold at full size
@@ -66,25 +58,25 @@ function createScorePopup(x, y, points, isLevelBonus = false) {
         });
     } else {
         // Select color based on point value
-        let colorSet = SCORE_COLORS.small;
-        if (points >= 1000) {
-            colorSet = SCORE_COLORS.large;
-        } else if (points >= 200) {
-            colorSet = SCORE_COLORS.medium;
+        let colorSet = GameConfig.COLORS.SCORE_SMALL;
+        if (points >= GameConfig.SCORE.VALUES.ALIEN) {
+            colorSet = GameConfig.COLORS.SCORE_LARGE;
+        } else if (points >= GameConfig.SCORE.VALUES.ASTEROID_MEDIUM) {
+            colorSet = GameConfig.COLORS.SCORE_MEDIUM;
         }
         
         // Pick a random color from the appropriate set
         const color = colorSet[Math.floor(Math.random() * colorSet.length)];
         
         // Add random horizontal offset to avoid clustering in the same spot
-        const offsetX = (Math.random() * 2 - 1) * SCORE_POPUP_OFFSET_RANGE;
+        const offsetX = (Math.random() * 2 - 1) * GameConfig.SCORE.POPUP_OFFSET_RANGE;
         
         // For regular score popups, ensure they're simple and non-rotating
         scorePopups.push({
             x,
             y,
             points,
-            lifetime: SCORE_POPUP_LIFETIME,
+            lifetime: GameConfig.SCORE.POPUP_LIFETIME,
             scale: 1.2, // Increased from 0.4 to 1.2 (3x larger)
             opacity: 1,
             rotation: 0, // Force zero rotation
@@ -98,8 +90,8 @@ function createScorePopup(x, y, points, isLevelBonus = false) {
 
 // Update score popups
 function updateScorePopups() {
-    const lifetimeReduction = 60 * deltaTime; // 60 fps equivalent
-    const moveSpeed = SCORE_POPUP_SPEED * 60 * deltaTime; // Make movement frame-rate independent
+    const lifetimeReduction = GameConfig.GAME.FPS * deltaTime; // FPS equivalent
+    const moveSpeed = GameConfig.SCORE.POPUP_SPEED * GameConfig.GAME.FPS * deltaTime; // Make movement frame-rate independent
     
     for (let i = scorePopups.length - 1; i >= 0; i--) {
         const popup = scorePopups[i];
@@ -114,7 +106,7 @@ function updateScorePopups() {
         
         if (popup.isLevelBonus) {
             // Level bonus animation
-            const totalLifetime = SCORE_POPUP_LIFETIME * 3;
+            const totalLifetime = GameConfig.SCORE.POPUP_LIFETIME * 3;
             const remainingLife = popup.lifetime;
             const elapsedTime = totalLifetime - remainingLife;
             
@@ -155,7 +147,7 @@ function updateScorePopups() {
             }
             
             // Simple scale-in effect: use percentage of total lifetime instead of frame count
-            const percentComplete = 1 - (popup.lifetime / SCORE_POPUP_LIFETIME);
+            const percentComplete = 1 - (popup.lifetime / GameConfig.SCORE.POPUP_LIFETIME);
             if (percentComplete < 0.15) { // First quarter of lifetime
                 // Start at 1.2 and grow to 1.8 over the first 15% of lifetime
                 popup.scale = 1.2 + (percentComplete * 4.0);
@@ -164,8 +156,8 @@ function updateScorePopups() {
             }
             
             // Fade out as lifetime approaches zero - based on percentage of lifetime
-            if (popup.lifetime < SCORE_POPUP_LIFETIME * 0.33) {
-                popup.opacity = popup.lifetime / (SCORE_POPUP_LIFETIME * 0.33);
+            if (popup.lifetime < GameConfig.SCORE.POPUP_LIFETIME * 0.33) {
+                popup.opacity = popup.lifetime / (GameConfig.SCORE.POPUP_LIFETIME * 0.33);
             }
         }
     }
@@ -190,11 +182,11 @@ function drawScorePopups() {
             ctx.scale(popup.scale, popup.scale);
             
             // Add a glow effect
-            ctx.shadowColor = '#FFFF00';
+            ctx.shadowColor = GameConfig.COLORS.LEVEL_BONUS;
             ctx.shadowBlur = 15 * popup.opacity;
             
             // Custom font and colors for level bonus
-            ctx.font = 'bold 28px "Press Start 2P", monospace';
+            ctx.font = `bold ${GameConfig.UI.FONT_SIZE_TITLE}px ${GameConfig.UI.FONT_FAMILY}`;
             
             // Format the score with "+" prefix and commas
             const formattedPoints = "+" + popup.points.toLocaleString();
@@ -218,7 +210,7 @@ function drawScorePopups() {
             ctx.strokeText(formattedPoints, 0, 0);
             
             // Add "LEVEL BONUS" text below
-            ctx.font = '12px "Press Start 2P", monospace';
+            ctx.font = `${GameConfig.UI.FONT_SIZE_SMALL}px ${GameConfig.UI.FONT_FAMILY}`;
             ctx.fillStyle = 'rgba(255, 255, 255, ' + popup.opacity + ')';
             ctx.fillText("LEVEL BONUS", 0, 24);
         } else {
@@ -227,10 +219,10 @@ function drawScorePopups() {
             ctx.scale(scale, scale);
             
             // Larger font sizes (3x increase)
-            if (popup.points >= 1000) {
-                ctx.font = 'bold 22px "Press Start 2P", monospace'; // Increased from 16px
+            if (popup.points >= GameConfig.SCORE.VALUES.ALIEN) {
+                ctx.font = `bold ${GameConfig.UI.FONT_SIZE_LARGE}px ${GameConfig.UI.FONT_FAMILY}`; // Increased from 16px
             } else {
-                ctx.font = '18px "Press Start 2P", monospace'; // Increased from 12px
+                ctx.font = `${GameConfig.UI.FONT_SIZE_MEDIUM}px ${GameConfig.UI.FONT_FAMILY}`; // Increased from 12px
             }
             
             // Use custom colors if provided
@@ -240,10 +232,10 @@ function drawScorePopups() {
                 ctx.strokeStyle = 'rgba(' + hexToRgba(darkenColor(popup.color), popup.opacity) + ')';
             } else {
                 // Fallback to default colors
-                if (popup.points >= 1000) {
+                if (popup.points >= GameConfig.SCORE.VALUES.ALIEN) {
                     ctx.fillStyle = 'rgba(255, 215, 0, ' + popup.opacity + ')'; // Gold
                     ctx.strokeStyle = 'rgba(255, 165, 0, ' + popup.opacity + ')'; // Orange
-                } else if (popup.points >= 200) {
+                } else if (popup.points >= GameConfig.SCORE.VALUES.ASTEROID_MEDIUM) {
                     ctx.fillStyle = 'rgba(173, 216, 230, ' + popup.opacity + ')'; // Light blue
                     ctx.strokeStyle = 'rgba(30, 144, 255, ' + popup.opacity + ')'; // Dodger blue
                 } else {
@@ -327,7 +319,6 @@ let showLog = false;        // Debug log visibility toggle
  */
 let showingReleaseNotes = false;
 let releaseNotesScroll = 0;
-const SCROLL_SPEED = 10;
 
 /**
  * High score system configuration
@@ -338,7 +329,6 @@ const SCROLL_SPEED = 10;
  * - Community engagement
  */
 let highScores = [];
-const HIGH_SCORE_COUNT = 15;
 let playerInitials = "AAA";
 let enteringInitials = false;
 let currentInitialIndex = 0;
@@ -352,11 +342,6 @@ let highScoresFetched = false;
 let frameCount = 0;
 let titleHoverOffset = 0;
 let titleHoverVelocity = 0.5; // Add initial upward velocity
-const TITLE_HOVER_SPEED = 0.02;      // Slightly slower for smoother movement
-const TITLE_HOVER_RANGE = 40;        // Increased range for more dramatic movement
-const TITLE_DAMPING = 0.9995;        // Almost no damping for sustained motion
-const TITLE_SPRING = 0.001;          // Very weak spring force for larger oscillations
-const TITLE_TRAIL_COUNT = 5;         // Number of trailing shadows
 
 /**
  * Core game state
@@ -373,94 +358,27 @@ let battlestar = null;     // Battlestar boss ship
 let battlestarBullets = []; // Battlestar bullets
 let battlestarDebris = []; // Battlestar debris and effects
 let score = 0;
-let lives = 3;
-let level = 1;
+let lives = GameConfig.GAME.STARTING_LIVES;
+let level = GameConfig.GAME.STARTING_LEVEL;
 
 /**
  * Game mechanics constants
- * Carefully balanced values that create:
+ * Now using centralized GameConfig values for:
  * - Satisfying ship control
  * - Fair combat difficulty
  * - Progressive challenge scaling
  * - Rewarding scoring system
  */
-const SHIP_SIZE = 30;                    // Increased from 20 to 30 for a bigger ship
-const SHIP_THRUST = 0.1;                 // Reduced from 0.5 to 0.3 for more controlled movement
-const SHIP_MAX_THRUST = 0.3;             // Reduced from 0.5 to match new thrust value
-const SHIP_ROTATION_SPEED = 0.1;         // Rotation rate unchanged
-const FRICTION = 0.99;                   // Friction coefficient unchanged
-const INVULNERABILITY_TIME = 180;        // Invulnerability duration unchanged
 
-// Visual Enhancement 1 - Thrust Effects
-const THRUST_FLAME_BASE = 0.6;           // Reduced from 0.8 for smaller flame
-const THRUST_FLAME_VARIANCE = 0.2;       // Reduced from 0.3 for more subtle variance
-const THRUST_SHAKE_AMOUNT = 0.15;        // Reduced from 0.2 for less shake
-const THRUST_PARTICLE_COUNT = 12;        // Reduced from 15 for fewer particles
-const THRUST_PARTICLE_LIFETIME = 15;     // Reduced from 20 for shorter trails
-const THRUST_PARTICLE_SPEED = 1.2;       // Reduced from 1.5 for slower particles
-const THRUST_PARTICLE_SPREAD = 0.25;     // Reduced from 0.3 for tighter spread
-const THRUST_PARTICLE_SPIN = 0.15;       // Reduced from 0.2 for less spin
-const THRUST_PARTICLE_SIZE = 1.5;        // Reduced from 2 for smaller particles
-const THRUST_PARTICLE_PULSE_SPEED = 0.25; // Reduced from 0.3 for slower pulsing
+// Visual Enhancement 1 - Thrust Effects (now using GameConfig values)
 
-// Asteroid constants
-const BASE_ASTEROID_SPEED = 1;           // Base speed for asteroids
-const ASTEROID_SPEED_SCALING = 0.2;      // Speed increase per level
-const MAX_ASTEROID_SPEED = 3;            // Maximum asteroid speed
-const ASTEROID_COUNT = 3;                // Starting number of asteroids
-const ASTEROID_JAG = 0.3;                // Jaggedness of asteroid shapes
-const SCORE_MULTIPLIER = 100;            // Base score for destroying asteroids
+// Asteroid constants (now using GameConfig values)
 
-// Bullet constants
-const BULLET_SPEED = 10;                 // Speed of player bullets
-const BULLET_LIFETIME = 50;              // How long bullets last
+// Bullet constants (now using GameConfig values)
 
-// Alien constants
-const ALIEN_SIZE = 20;                  // Size of alien ship
-const ALIEN_SPEED = 4;                  // Movement speed
-const ALIEN_BASE_SPEED = 200;           // Base speed for difficulty scaling
-const ALIEN_FIRE_RATE = 0.5;            // Base fire rate for difficulty scaling (bullets per second)
-const ALIEN_ROTATION_SPEED = 0.1;       // How fast aliens rotate
-const ALIEN_FRICTION = 0.99;             // Friction applied to alien movement
-const ALIEN_POINTS = 1000;               // Score for destroying an alien
-const ALIEN_MAX_COUNT = 3;               // Maximum aliens at once
-const ALIEN_CHANGE_DIRECTION_RATE = 60;  // How often aliens change direction
-const ALIEN_FIRE_RATE_MIN = 30;          // Minimum frames between alien shots
-const ALIEN_FIRE_RATE_MAX = 90;          // Maximum frames between alien shots
-const ALIEN_MAX_BULLETS = 3;             // Maximum alien bullets on screen
-const ALIEN_BULLET_SPEED = 5;          // Speed of alien bullets
-const ALIEN_BULLET_LIFETIME = 3;         // Seconds before alien bullets expire
-const ALIEN_BULLET_SIZE = 3;             // Size of alien bullets
-const ALIEN_BULLET_PULSE_SPEED = 0.2;    // Speed of bullet pulse animation
+// Alien constants (now using GameConfig values)
 
-// Alien spawn timing
-const ALIEN_BASE_SPAWN_INTERVAL = 15000; // 15 seconds at game start
-const ALIEN_MIN_SPAWN_INTERVAL = 5000; // Minimum 5 seconds between spawns
-const ALIEN_SPAWN_INTERVAL_DECREASE = 1000; // Decrease by 1 second per level
-const ALIEN_SPAWN_DELAY = 20000;         // Base delay between aliens (20 seconds)
-const ALIEN_SPAWN_RANDOM = 10000;        // Additional random delay (up to 10 seconds)
-const ALIEN_SPAWN_CHANCE = 0.3;          // 30% chance per spawn attempt
-const ALIEN_THRUST = 0.5;                // Thrust force for alien movement
-
-// Add alien spawn and invulnerability constants
-const ALIEN_INVULNERABILITY_TIME = 180; // 3 seconds at 60fps
-const ALIEN_SPAWN_EFFECT_DURATION = 60; // 1 second spawn animation
-const ALIEN_SPAWN_PARTICLES = 20;
-
-// Battlestar constants
-const BATTLESTAR_WIDTH = 200;            // Width of the battlestar
-const BATTLESTAR_HEIGHT = 80;            // Height of the battlestar
-const BATTLESTAR_SPEED = 1.5;            // Increased speed for better movement with delta time
-const BATTLESTAR_MAX_HEALTH = 10;        // Health points of the battlestar
-const BATTLESTAR_DAMAGE_THRESHOLDS = [7, 4, 1]; // Thresholds for damage states
-const BATTLESTAR_CANNON_COUNT = 4;       // Number of cannons on the battlestar
-const BATTLESTAR_FIRE_RATE = 90;         // Frames between cannon shots
-const BATTLESTAR_BULLET_SPEED = 4;       // Speed of battlestar bullets
-const BATTLESTAR_BULLET_SIZE = 4;        // Size of battlestar bullets
-const BATTLESTAR_POINTS = 5000;          // Points for destroying the battlestar
-const BATTLESTAR_INVULNERABILITY_TIME = 180; // 3 seconds invulnerable after spawn
-const BATTLESTAR_EXPLOSION_PARTICLES = 50; // Number of explosion particles
-const BATTLESTAR_EXPLOSION_DURATION = 120; // Duration of explosion animation
+// Battlestar constants (now using GameConfig values)
 
 /**
  * Input state tracking
@@ -518,7 +436,7 @@ const SAFE_RESPAWN_DISTANCE = 100;
  */
 let gamePaused = false;
 let wasPausedBeforeFocus = false; // Remember pause state when window loses focus
-const MAX_BULLETS = 4;
+// MAX_BULLETS now defined in GameConfig.GAME.MAX_BULLETS
 
 // Debug/testing variables
 let forceAliensInLevel1 = false; // Set to true to allow aliens in level 1 for testing
@@ -1577,7 +1495,7 @@ window.addEventListener('keydown', (e) => {
 
     // Spawn alien with 'U' key (for testing)
     if ((e.key === 'u' || e.key === 'U') && gameStarted && !gamePaused) {
-        if (aliens.length < ALIEN_MAX_COUNT) {
+        if (aliens.length < GameConfig.ALIEN.MAX_COUNT) {
             createAlien();
             if (level <= 1) {
                 addLogMessage('DEBUG: Alien created in level 1 (using cheat - normally aliens only appear from level 2)');
@@ -1603,7 +1521,7 @@ window.addEventListener('keydown', (e) => {
         addLogMessage('DEBUG: Alien testing mode ' + (forceAliensInLevel1 ? 'enabled' : 'disabled'));
         if (forceAliensInLevel1) {
             // Force spawn an alien immediately for testing
-            if (aliens.length < ALIEN_MAX_COUNT) {
+            if (aliens.length < GameConfig.ALIEN.MAX_COUNT) {
                 createAlien();
                 addLogMessage('DEBUG: Test alien spawned');
             }
@@ -1645,10 +1563,10 @@ window.addEventListener('keydown', (e) => {
     // If release notes are showing, only handle scrolling
     if (showingReleaseNotes) {
         if (e.key === 'ArrowUp') {
-            releaseNotesScroll = Math.max(0, releaseNotesScroll - SCROLL_SPEED);
+            releaseNotesScroll = Math.max(0, releaseNotesScroll - GameConfig.ANIMATION.SCROLL_SPEED);
             return;
         } else if (e.key === 'ArrowDown') {
-            releaseNotesScroll += SCROLL_SPEED;
+            releaseNotesScroll += GameConfig.ANIMATION.SCROLL_SPEED;
             return;
         }
         return; // Ignore other keys while showing release notes
@@ -2344,11 +2262,11 @@ function createAsteroids() {
     let x, y;
     
     // Create asteroids away from the ship
-    for (let i = 0; i < ASTEROID_COUNT + level; i++) {
+    for (let i = 0; i < GameConfig.ASTEROID.COUNT + level; i++) {
         do {
             x = Math.random() * canvas.width;
             y = Math.random() * canvas.height;
-        } while (ship && distBetweenPoints(ship.x, ship.y, x, y) < SHIP_SIZE * 4);
+        } while (ship && distBetweenPoints(ship.x, ship.y, x, y) < GameConfig.SHIP.SIZE * 4);
         
         asteroids.push(createAsteroid(x, y, 3)); // Start with large asteroids (size 3)
     }
@@ -2359,9 +2277,9 @@ function createAsteroid(x, y, size) {
     const ASTEROID_VERT = 10; // average number of vertices
     
     // Calculate speed based on level and size
-    const levelSpeedBonus = Math.min((level - 1) * ASTEROID_SPEED_SCALING, MAX_ASTEROID_SPEED - BASE_ASTEROID_SPEED);
+    const levelSpeedBonus = Math.min((level - 1) * GameConfig.ASTEROID.SPEED_SCALING, GameConfig.ASTEROID.MAX_SPEED - GameConfig.ASTEROID.BASE_SPEED);
     const sizeSpeedMultiplier = (4 - size) * 0.4; // Smaller asteroids are faster (size 3: 0.4x, size 2: 0.8x, size 1: 1.2x)
-    const currentSpeed = (BASE_ASTEROID_SPEED + levelSpeedBonus) * (1 + sizeSpeedMultiplier);
+    const currentSpeed = (GameConfig.ASTEROID.BASE_SPEED + levelSpeedBonus) * (1 + sizeSpeedMultiplier);
     
     let asteroid = {
         x: x,
@@ -2383,7 +2301,7 @@ function createAsteroid(x, y, size) {
     // Create the asteroid's shape (offset array)
     for (let i = 0; i < asteroid.vert; i++) {
         asteroid.offset.push(
-            Math.random() * ASTEROID_JAG * 2 + 1 - ASTEROID_JAG
+            Math.random() * GameConfig.ASTEROID.JAG * 2 + 1 - GameConfig.ASTEROID.JAG
         );
     }
     
@@ -2411,9 +2329,9 @@ function updateGame() {
     
     // Handle ship rotation (reversed left/right for more intuitive controls)
     if (keys.left) {
-        ship.rotation = SHIP_ROTATION_SPEED; // Reversed from negative to positive
+        ship.rotation = GameConfig.SHIP.ROTATION_SPEED; // Reversed from negative to positive
     } else if (keys.right) {
-        ship.rotation = -SHIP_ROTATION_SPEED; // Reversed from positive to negative
+        ship.rotation = -GameConfig.SHIP.ROTATION_SPEED; // Reversed from positive to negative
     } else {
         ship.rotation = 0;
     }
@@ -2528,8 +2446,8 @@ function updateGame() {
             // Set the full spawn delay when entering a new level
             // This ensures aliens don't appear immediately
             const spawnInterval = Math.max(
-                ALIEN_MIN_SPAWN_INTERVAL,
-                ALIEN_BASE_SPAWN_INTERVAL - (level - 2) * ALIEN_SPAWN_INTERVAL_DECREASE
+                GameConfig.ALIEN.MIN_SPAWN_INTERVAL,
+                GameConfig.ALIEN.BASE_SPAWN_INTERVAL - (level - 2) * GameConfig.ALIEN.SPAWN_INTERVAL_DECREASE
             );
             // Add some extra delay for the first alien of the level
             alienSpawnTimer = spawnInterval * 1.5;
@@ -2604,13 +2522,13 @@ function updateShip() {
     
     // Apply thrust using a vector-based physics model with delta time scaling
     if (ship.thrusting) {
-        ship.thrust.x += SHIP_THRUST * Math.cos(ship.angle) * 60 * deltaTime;
-        ship.thrust.y -= SHIP_THRUST * Math.sin(ship.angle) * 60 * deltaTime;
+        ship.thrust.x += GameConfig.SHIP.THRUST * Math.cos(ship.angle) * GameConfig.GAME.FPS * deltaTime;
+        ship.thrust.y -= GameConfig.SHIP.THRUST * Math.sin(ship.angle) * GameConfig.GAME.FPS * deltaTime;
     } else {
         // Apply exponential decay friction to gradually slow the ship
         // This creates a smooth deceleration effect while maintaining momentum
         // Use a time-based friction factor instead of a fixed per-frame value
-        const frictionFactor = Math.pow(FRICTION, 60 * deltaTime);
+        const frictionFactor = Math.pow(GameConfig.SHIP.FRICTION, GameConfig.GAME.FPS * deltaTime);
         ship.thrust.x *= frictionFactor;
         ship.thrust.y *= frictionFactor;
     }
@@ -2711,7 +2629,7 @@ function respawnShipSafely() {
     ship = {
         x: newX,
         y: newY,
-        radius: SHIP_SIZE / 2,
+        radius: GameConfig.SHIP.SIZE / 2,
         angle: 0,
         rotation: 0,
         thrusting: false,
@@ -2722,7 +2640,7 @@ function respawnShipSafely() {
         exploding: false,
         explodeTime: 0,
         invulnerable: true,
-        invulnerableTime: INVULNERABILITY_TIME,
+        invulnerableTime: GameConfig.SHIP.INVULNERABILITY_TIME,
         // Add spawn animation properties
         spawning: true,
         spawnTime: 60, // 1 second at 60fps
@@ -2735,8 +2653,8 @@ function respawnShipSafely() {
     for (let i = 0; i < 20; i++) {
         const angle = (i / 20) * Math.PI * 2;
         ship.spawnParticles.push({
-            x: newX + Math.cos(angle) * SHIP_SIZE * 2,
-            y: newY + Math.sin(angle) * SHIP_SIZE * 2,
+            x: newX + Math.cos(angle) * GameConfig.SHIP.SIZE * 2,
+            y: newY + Math.sin(angle) * GameConfig.SHIP.SIZE * 2,
             targetX: newX,
             targetY: newY,
             alpha: 1,
@@ -2753,7 +2671,7 @@ function fireBullet() {
     // 3. Limited lifetime to prevent screen cluttering
     // 4. Automatic cleanup of expired bullets
     
-    if (bullets.length < MAX_BULLETS && !ship.exploding) {
+    if (bullets.length < GameConfig.GAME.MAX_BULLETS && !ship.exploding) {
         // Calculate bullet spawn position at ship's nose
         const angle = ship.angle;
         const bulletX = ship.x + Math.cos(angle) * ship.radius;
@@ -2764,9 +2682,9 @@ function fireBullet() {
         bullets.push({
             x: bulletX,
             y: bulletY,
-            xv: BULLET_SPEED * Math.cos(angle) + ship.thrust.x,
-            yv: -BULLET_SPEED * Math.sin(angle) + ship.thrust.y,
-            lifetime: BULLET_LIFETIME
+            xv: GameConfig.BULLET.SPEED * Math.cos(angle) + ship.thrust.x,
+            yv: -GameConfig.BULLET.SPEED * Math.sin(angle) + ship.thrust.y,
+            lifetime: GameConfig.BULLET.LIFETIME
         });
         
         playSound('fire');
@@ -2951,7 +2869,7 @@ function checkCollisions() {
     if (ship && !ship.exploding && !ship.invulnerable) {
         for (let i = aliens.length - 1; i >= 0; i--) {
             const alien = aliens[i];
-            if (!alien.invulnerable && distBetweenPoints(ship.x, ship.y, alien.x, alien.y) < ship.radius + ALIEN_SIZE) {
+            if (!alien.invulnerable && distBetweenPoints(ship.x, ship.y, alien.x, alien.y) < ship.radius + GameConfig.ALIEN.SIZE) {
                 // Destroy both ship and alien
                 destroyShip();
                 destroyAlien(alien, false); // false indicates collision rather than shot
@@ -2970,7 +2888,7 @@ function checkCollisions() {
                 const dy = alien.y - asteroid.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < ALIEN_SIZE + asteroid.radius) {
+                if (distance < GameConfig.ALIEN.SIZE + asteroid.radius) {
                     // Calculate collision angle for debris direction
                     const collisionAngle = Math.atan2(dy, dx);
                     
@@ -3316,8 +3234,8 @@ function updateShipDebris() {
 function destroyAsteroid(index, collisionAngle = null) {
     const asteroid = asteroids[index];
     // Score increases with level
-    const levelBonus = Math.floor((level - 1) * 0.5 * SCORE_MULTIPLIER); // 50% more points per level
-    const points = (SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
+    const levelBonus = Math.floor((level - 1) * 0.5 * GameConfig.ASTEROID.SCORE_MULTIPLIER); // 50% more points per level
+    const points = (GameConfig.ASTEROID.SCORE_MULTIPLIER * (4 - asteroid.size)) + levelBonus;
     
     // Add score
     score += points;
@@ -3439,8 +3357,8 @@ function drawShip() {
     let drawX = ship.x;
     let drawY = ship.y;
     if (ship.thrusting) {
-        drawX += (Math.random() - 0.5) * THRUST_SHAKE_AMOUNT;
-        drawY += (Math.random() - 0.5) * THRUST_SHAKE_AMOUNT;
+        drawX += (Math.random() - 0.5) * GameConfig.THRUST.SHAKE_AMOUNT;
+        drawY += (Math.random() - 0.5) * GameConfig.THRUST.SHAKE_AMOUNT;
     }
 
     // Draw ship
@@ -3466,7 +3384,7 @@ function drawShip() {
         // Create gradient for flame
         const rearX = drawX - ship.radius * 1.2 * Math.cos(ship.angle);
         const rearY = drawY + ship.radius * 1.2 * Math.sin(ship.angle);
-        const flameSize = THRUST_FLAME_BASE + Math.random() * THRUST_FLAME_VARIANCE;
+        const flameSize = GameConfig.THRUST.FLAME_BASE + Math.random() * GameConfig.THRUST.FLAME_VARIANCE;
         const flameTipX = drawX - ship.radius * (1.2 + flameSize) * Math.cos(ship.angle);
         const flameTipY = drawY + ship.radius * (1.2 + flameSize) * Math.sin(ship.angle);
         
@@ -3492,9 +3410,9 @@ function drawShip() {
         ctx.fill();
         
         // Add new particles with enhanced properties
-        if (thrustParticles.length < THRUST_PARTICLE_COUNT) {
-            const angle = ship.angle + Math.PI + (Math.random() - 0.5) * THRUST_PARTICLE_SPREAD;
-            addThrustParticle(rearX, rearY, angle, THRUST_PARTICLE_SPEED, ship.thrust.x, ship.thrust.y);
+        if (thrustParticles.length < GameConfig.THRUST.PARTICLE_COUNT) {
+            const angle = ship.angle + Math.PI + (Math.random() - 0.5) * GameConfig.THRUST.PARTICLE_SPREAD;
+            addThrustParticle(rearX, rearY, angle, GameConfig.THRUST.PARTICLE_SPEED, ship.thrust.x, ship.thrust.y);
         }
     }
     
@@ -3502,7 +3420,7 @@ function drawShip() {
     ctx.lineWidth = 1;
     for (let i = thrustParticles.length - 1; i >= 0; i--) {
         const particle = thrustParticles[i];
-        const lifeRatio = particle.life / THRUST_PARTICLE_LIFETIME;
+        const lifeRatio = particle.life / GameConfig.THRUST.PARTICLE_LIFETIME;
         const pulseSize = particle.baseSize * (0.8 + 0.4 * Math.sin(frameCount * 0.2 + particle.pulseOffset));
         
         ctx.save();
@@ -3738,7 +3656,7 @@ function drawGameInfo() {
         
         // Show level stats
         ctx.font = '10px "Press Start 2P"';
-        ctx.fillText(`Asteroid Speed: ${Math.round((BASE_ASTEROID_SPEED + Math.min((level - 1) * ASTEROID_SPEED_SCALING, MAX_ASTEROID_SPEED - BASE_ASTEROID_SPEED)) * 100)}%`, canvas.width / 2, canvas.height / 2 + 60);
+        ctx.fillText(`Asteroid Speed: ${Math.round((GameConfig.ASTEROID.BASE_SPEED + Math.min((level - 1) * GameConfig.ASTEROID.SPEED_SCALING, GameConfig.ASTEROID.MAX_SPEED - GameConfig.ASTEROID.BASE_SPEED)) * 100)}%`, canvas.width / 2, canvas.height / 2 + 60);
         ctx.fillText(`Score Multiplier: ${Math.round((1 + (level - 1) * 0.5) * 100)}%`, canvas.width / 2, canvas.height / 2 + 80);
         ctx.fillText(`Asteroid Children: ${Math.min(2 + Math.floor((level - 1) / 3), 4)}`, canvas.width / 2, canvas.height / 2 + 100);
     }
@@ -3786,7 +3704,7 @@ function isHighScore(score) {
     if (!highScoresFetched) return true;
     
     // If there are fewer than HIGH_SCORE_COUNT scores, it's definitely a high score
-    if (highScores.length < HIGH_SCORE_COUNT) return actualScore > 0;
+    if (highScores.length < GameConfig.SCORE.HIGH_SCORE_COUNT) return actualScore > 0;
     
     // Otherwise, check if it's higher than the lowest score
     return actualScore > 0 && actualScore > highScores[highScores.length - 1].score;
@@ -3923,15 +3841,15 @@ function initWelcomeAsteroids() {
             vert: Math.floor(Math.random() * 6) + 5,
             offset: [],
             velocity: {
-                x: Math.random() * BASE_ASTEROID_SPEED - BASE_ASTEROID_SPEED/2,
-                y: Math.random() * BASE_ASTEROID_SPEED - BASE_ASTEROID_SPEED/2
+                x: Math.random() * GameConfig.ASTEROID.BASE_SPEED - GameConfig.ASTEROID.BASE_SPEED/2,
+                y: Math.random() * GameConfig.ASTEROID.BASE_SPEED - GameConfig.ASTEROID.BASE_SPEED/2
             }
         });
         
         // Create the asteroid's shape (offset array)
         for (let j = 0; j < welcomeAsteroids[i].vert; j++) {
             welcomeAsteroids[i].offset.push(
-                Math.random() * ASTEROID_JAG * 2 + 1 - ASTEROID_JAG
+                Math.random() * GameConfig.ASTEROID.JAG * 2 + 1 - GameConfig.ASTEROID.JAG
             );
         }
     }
@@ -4055,13 +3973,13 @@ function createAliens() {
     aliens = [];
     
     // Create aliens based on spawn chance
-    for (let i = 0; i < ALIEN_MAX_COUNT; i++) {
-        if (Math.random() < ALIEN_SPAWN_CHANCE) {
+    for (let i = 0; i < GameConfig.ALIEN.MAX_COUNT; i++) {
+        if (Math.random() < GameConfig.ALIEN.SPAWN_CHANCE) {
             aliens.push({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
-                dx: Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED,
-                dy: Math.random() * ALIEN_SPEED * 2 - ALIEN_SPEED,
+                dx: Math.random() * GameConfig.ALIEN.SPEED * 2 - GameConfig.ALIEN.SPEED,
+                dy: Math.random() * GameConfig.ALIEN.SPEED * 2 - GameConfig.ALIEN.SPEED,
                 angle: 0,
                 rotation: 0,
                 targetAngle: 0,
@@ -4091,8 +4009,8 @@ function updateAliens() {
                 
                 // Calculate spawn interval for next alien
                 const spawnInterval = Math.max(
-                    ALIEN_MIN_SPAWN_INTERVAL,
-                    ALIEN_BASE_SPAWN_INTERVAL - (level - 2) * ALIEN_SPAWN_INTERVAL_DECREASE
+                    GameConfig.ALIEN.MIN_SPAWN_INTERVAL,
+                    GameConfig.ALIEN.BASE_SPAWN_INTERVAL - (level - 2) * GameConfig.ALIEN.SPAWN_INTERVAL_DECREASE
                 );
                 alienSpawnTimer = spawnInterval;
             }
@@ -4106,7 +4024,7 @@ function updateAliens() {
         // Update spawn animation
         if (alien.spawnTime > 0) {
             alien.spawnTime -= 60 * deltaTime;
-            alien.scale = 1 - (alien.spawnTime / ALIEN_SPAWN_EFFECT_DURATION);
+            alien.scale = 1 - (alien.spawnTime / GameConfig.ALIEN.SPAWN_EFFECT_DURATION);
         }
         
         // Update invulnerability
@@ -4119,7 +4037,7 @@ function updateAliens() {
                     x: alien.x,
                     y: alien.y,
                     radius: 1,
-                    maxRadius: ALIEN_SIZE * 2,
+                    maxRadius: GameConfig.ALIEN.SIZE * 2,
                     lifetime: 20,
                     type: 'shockwave',
                     color: '#00FFFF'
@@ -4134,7 +4052,7 @@ function updateAliens() {
         
         // Update direction change timer for unpredictable movement
         alien.directionTimer += 60 * deltaTime;
-        if (alien.directionTimer >= ALIEN_CHANGE_DIRECTION_RATE) {
+        if (alien.directionTimer >= GameConfig.ALIEN.CHANGE_DIRECTION_RATE) {
             alien.directionTimer = 0;
             // Choose new random direction and thrust state
             alien.targetAngle = Math.random() * Math.PI * 2;
@@ -4144,7 +4062,7 @@ function updateAliens() {
         // Implement smooth rotation towards target angle
         const angleDiff = (alien.targetAngle - alien.angle + Math.PI * 3) % (Math.PI * 2) - Math.PI;
         if (Math.abs(angleDiff) > 0.01) {
-            alien.rotation = Math.sign(angleDiff) * ALIEN_ROTATION_SPEED;
+            alien.rotation = Math.sign(angleDiff) * GameConfig.ALIEN.ROTATION_SPEED;
         } else {
             alien.rotation = 0;
         }
@@ -4152,20 +4070,20 @@ function updateAliens() {
         
         // Apply thrust with the same physics model as the player ship
         if (alien.thrusting) {
-            alien.dx += Math.cos(alien.angle) * ALIEN_THRUST * 60 * deltaTime;
-            alien.dy += Math.sin(alien.angle) * ALIEN_THRUST * 60 * deltaTime;
+            alien.dx += Math.cos(alien.angle) * GameConfig.ALIEN.THRUST * 60 * deltaTime;
+            alien.dy += Math.sin(alien.angle) * GameConfig.ALIEN.THRUST * 60 * deltaTime;
         }
         
         // Apply friction to create smooth movement
-        const frictionFactor = Math.pow(ALIEN_FRICTION, 60 * deltaTime);
+        const frictionFactor = Math.pow(GameConfig.ALIEN.FRICTION, 60 * deltaTime);
         alien.dx *= frictionFactor;
         alien.dy *= frictionFactor;
         
         // Implement intelligent shooting behavior
-        if (!alien.invulnerable && alien.active && ship && !ship.exploding && alienBullets.length < ALIEN_MAX_BULLETS) {
+        if (!alien.invulnerable && alien.active && ship && !ship.exploding && alienBullets.length < GameConfig.ALIEN.MAX_BULLETS) {
             alien.fireTimer += 60 * deltaTime;
             // Randomize fire rate for unpredictability
-            const fireRate = ALIEN_FIRE_RATE_MIN + Math.random() * (ALIEN_FIRE_RATE_MAX - ALIEN_FIRE_RATE_MIN);
+            const fireRate = GameConfig.ALIEN.FIRE_RATE_MIN + Math.random() * (GameConfig.ALIEN.FIRE_RATE_MAX - GameConfig.ALIEN.FIRE_RATE_MIN);
             
             if (alien.fireTimer >= fireRate) {
                 alien.fireTimer = 0;
@@ -4189,10 +4107,10 @@ function updateAliens() {
                 alienBullets.push({
                     x: alien.x,
                     y: alien.y,
-                    dx: Math.cos(finalAngle) * ALIEN_BULLET_SPEED,
-                    dy: Math.sin(finalAngle) * ALIEN_BULLET_SPEED,
+                    dx: Math.cos(finalAngle) * GameConfig.ALIEN.BULLET_SPEED,
+                    dy: Math.sin(finalAngle) * GameConfig.ALIEN.BULLET_SPEED,
                     active: true,
-                    size: ALIEN_BULLET_SIZE,
+                    size: GameConfig.ALIEN.BULLET_SIZE,
                     pulsePhase: 0
                 });
                 playSound('alienFire');
@@ -4230,12 +4148,12 @@ function createAlien() {
     // Calculate base speed with difficulty scaling
     // Level 2: 75% of max speed, increasing gradually to 100% by level 5
     const difficultyFactor = Math.min(1, 0.75 + Math.max(0, level - 2) * 0.08);
-    const baseSpeed = ALIEN_BASE_SPEED * difficultyFactor;
+            const baseSpeed = GameConfig.ALIEN.BASE_SPEED * difficultyFactor;
     
     // Calculate fire rate with difficulty scaling
     // Level 2: 60% of max rate, increasing gradually to 100% by level 5
     const fireRateFactor = Math.min(1, 0.6 + Math.max(0, level - 2) * 0.13);
-    const fireRate = ALIEN_FIRE_RATE * fireRateFactor;
+            const fireRate = GameConfig.ALIEN.FIRE_RATE * fireRateFactor;
     
     // Create alien object with adjusted properties based on level
     const alien = {
@@ -4250,10 +4168,10 @@ function createAlien() {
         directionTimer: 0, // Timer for direction changes
         active: true, // Active state
         thrusting: Math.random() < 0.7, // 70% chance to be thrusting initially
-        spawnTime: ALIEN_SPAWN_EFFECT_DURATION, // Spawn animation timer
+        spawnTime: GameConfig.ALIEN.SPAWN_EFFECT_DURATION, // Spawn animation timer
         scale: 0, // Initial scale for spawn effect
         invulnerable: true, // Start invulnerable
-        invulnerableTime: ALIEN_INVULNERABILITY_TIME, // Invulnerability timer
+        invulnerableTime: GameConfig.ALIEN.INVULNERABILITY_TIME, // Invulnerability timer
         health: 1 + Math.floor((level - 1) / 3), // Health increases every 3 levels
         scoreValue: 500 * (1 + Math.floor((level - 1) / 2)) // Score value increases every 2 levels
     };
@@ -4297,24 +4215,24 @@ function drawAliens() {
 
         // Draw saucer shape
         ctx.beginPath();
-        ctx.moveTo(-ALIEN_SIZE, 0);
-        ctx.lineTo(-ALIEN_SIZE/2, -ALIEN_SIZE/2);
-        ctx.lineTo(ALIEN_SIZE/2, -ALIEN_SIZE/2);
-        ctx.lineTo(ALIEN_SIZE, 0);
-        ctx.lineTo(ALIEN_SIZE/2, ALIEN_SIZE/2);
-        ctx.lineTo(-ALIEN_SIZE/2, ALIEN_SIZE/2);
+        ctx.moveTo(-GameConfig.ALIEN.SIZE, 0);
+        ctx.lineTo(-GameConfig.ALIEN.SIZE/2, -GameConfig.ALIEN.SIZE/2);
+        ctx.lineTo(GameConfig.ALIEN.SIZE/2, -GameConfig.ALIEN.SIZE/2);
+        ctx.lineTo(GameConfig.ALIEN.SIZE, 0);
+        ctx.lineTo(GameConfig.ALIEN.SIZE/2, GameConfig.ALIEN.SIZE/2);
+        ctx.lineTo(-GameConfig.ALIEN.SIZE/2, GameConfig.ALIEN.SIZE/2);
         ctx.closePath();
         ctx.stroke();
 
         // Draw cockpit
         ctx.beginPath();
-        ctx.arc(0, 0, ALIEN_SIZE/4, 0, Math.PI * 2);
+        ctx.arc(0, 0, GameConfig.ALIEN.SIZE/4, 0, Math.PI * 2);
         ctx.stroke();
 
         // Draw invulnerability shield effect
         if (alien.invulnerable) {
             ctx.beginPath();
-            ctx.arc(0, 0, ALIEN_SIZE * 1.2, 0, Math.PI * 2);
+            ctx.arc(0, 0, GameConfig.ALIEN.SIZE * 1.2, 0, Math.PI * 2);
             ctx.strokeStyle = `hsl(${frameCount * 5 % 360}, 100%, 70%)`;
             ctx.globalAlpha = 0.3;
             ctx.stroke();
@@ -4327,9 +4245,9 @@ function drawAliens() {
             const flameSize = 0.8 + 0.4 * Math.random(); // Random flicker effect
             
             // Center the flame at the back of the saucer
-            ctx.moveTo(-ALIEN_SIZE, -ALIEN_SIZE/4);
-            ctx.lineTo(-ALIEN_SIZE - ALIEN_SIZE * flameSize, 0);
-            ctx.lineTo(-ALIEN_SIZE, ALIEN_SIZE/4);
+            ctx.moveTo(-GameConfig.ALIEN.SIZE, -GameConfig.ALIEN.SIZE/4);
+            ctx.lineTo(-GameConfig.ALIEN.SIZE - GameConfig.ALIEN.SIZE * flameSize, 0);
+            ctx.lineTo(-GameConfig.ALIEN.SIZE, GameConfig.ALIEN.SIZE/4);
             ctx.closePath();
             ctx.fill();
         }
@@ -4352,8 +4270,8 @@ function updateAlienBullets() {
         bullet.y += bullet.dy * 60 * deltaTime;
 
         // Update pulse animation with deltaTime
-        bullet.pulsePhase = (bullet.pulsePhase + ALIEN_BULLET_PULSE_SPEED * 60 * deltaTime) % (Math.PI * 2);
-        bullet.size = ALIEN_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
+        bullet.pulsePhase = (bullet.pulsePhase + GameConfig.ALIEN.BULLET_PULSE_SPEED * 60 * deltaTime) % (Math.PI * 2);
+        bullet.size = GameConfig.ALIEN.BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
 
         // Update lifetime
         if (bullet.lifetime !== undefined) {
@@ -4390,7 +4308,7 @@ function updateAlienBullets() {
 
         // Check collision with player
         if (ship && !ship.exploding && !ship.invulnerable) {
-            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < SHIP_SIZE) {
+            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < GameConfig.SHIP.SIZE) {
                 bullet.active = false;
                 destroyShip();
             }
@@ -4433,11 +4351,11 @@ function addThrustParticle(x, y, angle, baseSpeed, inheritedVx, inheritedVy) {
         y: y + (Math.random() - 0.5) * 4,
         vx: Math.cos(angle) * speed + inheritedVx,
         vy: -Math.sin(angle) * speed + inheritedVy,
-        life: THRUST_PARTICLE_LIFETIME,
+        life: GameConfig.THRUST.PARTICLE_LIFETIME,
         rotation: Math.random() * Math.PI * 2,        // Random initial rotation
         rotationSpeed: (Math.random() - 0.5) * 0.4,  // Increased rotation speed
         pulseOffset: Math.random() * Math.PI * 2,     // Random pulse phase
-        baseSize: THRUST_PARTICLE_SIZE * (0.7 + Math.random() * 0.6)
+        baseSize: GameConfig.THRUST.PARTICLE_SIZE * (0.7 + Math.random() * 0.6)
     });
 }
 
@@ -4543,9 +4461,9 @@ function destroyAlien(alien, wasShot = true, collisionAngle = null) {
     
     // Add score only if shot (not from collision)
     if (wasShot) {
-        score += ALIEN_POINTS;
+        score += GameConfig.ALIEN.POINTS;
         // Use the createScorePopup function instead of direct push
-        createScorePopup(alien.x, alien.y, ALIEN_POINTS, false);
+        createScorePopup(alien.x, alien.y, GameConfig.ALIEN.POINTS, false);
     }
     
     // Enhanced explosion sound
@@ -4667,7 +4585,7 @@ function destroyAsteroid(index, collisionAngle = null) {
                 collisionAngle + splitAngle : splitAngle;
             
             // Create new asteroid with inherited velocity
-            const speed = BASE_ASTEROID_SPEED * (4 - asteroid.size) * 0.5;
+            const speed = GameConfig.ASTEROID.BASE_SPEED * (4 - asteroid.size) * 0.5;
             const newAsteroid = createAsteroid(
                 asteroid.x + Math.cos(finalAngle) * asteroid.radius * 0.5,
                 asteroid.y + Math.sin(finalAngle) * asteroid.radius * 0.5,
@@ -5016,7 +4934,7 @@ function createBattlestar() {
     const spawnSide = Math.random() < 0.5 ? 'left' : 'right';
     
     // Set position based on spawn side - now partially on screen
-    const x = spawnSide === 'left' ? BATTLESTAR_WIDTH * 0.25 : canvas.width - BATTLESTAR_WIDTH * 0.25;
+    const x = spawnSide === 'left' ? GameConfig.BATTLESTAR.WIDTH * 0.25 : canvas.width - GameConfig.BATTLESTAR.WIDTH * 0.25;
     const y = canvas.height * (0.25 + Math.random() * 0.5); // Spawn in middle 50% of screen height
     
     // Direction depends on spawn side
@@ -5027,7 +4945,7 @@ function createBattlestar() {
         x: x,
         y: y,
         radius: 1,
-        maxRadius: BATTLESTAR_WIDTH * 2,
+                    maxRadius: GameConfig.BATTLESTAR.WIDTH * 2,
         lifetime: 60,
         type: 'shockwave',
         color: '#FF0000'
@@ -5038,7 +4956,7 @@ function createBattlestar() {
         x: x,
         y: y,
         radius: 1,
-        maxRadius: BATTLESTAR_WIDTH,
+                    maxRadius: GameConfig.BATTLESTAR.WIDTH,
         lifetime: 75, // Slightly longer to create layered effect
         type: 'shockwave',
         color: '#FFFF00'
@@ -5047,7 +4965,7 @@ function createBattlestar() {
     // Create more dramatic spawn particles
     for (let i = 0; i < 50; i++) { // Increased from 30 to 50
         const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * BATTLESTAR_WIDTH * 1.2; // Increased range
+        const distance = Math.random() * GameConfig.BATTLESTAR.WIDTH * 1.2; // Increased range
         
         battlestarDebris.push({
             x: x + Math.cos(angle) * distance,
@@ -5065,16 +4983,16 @@ function createBattlestar() {
     
     // Create cannons at spread-out positions
     const cannons = [];
-    for (let i = 0; i < BATTLESTAR_CANNON_COUNT; i++) {
+    for (let i = 0; i < GameConfig.BATTLESTAR.CANNON_COUNT; i++) {
         // Position cannons along the battlestar's length
-        const xOffset = (i / (BATTLESTAR_CANNON_COUNT - 1) - 0.5) * BATTLESTAR_WIDTH * 0.8;
+        const xOffset = (i / (GameConfig.BATTLESTAR.CANNON_COUNT - 1) - 0.5) * GameConfig.BATTLESTAR.WIDTH * 0.8;
         // Alternate cannons above and below centerline
-        const yOffset = (i % 2 === 0 ? -1 : 1) * BATTLESTAR_HEIGHT * 0.3;
+        const yOffset = (i % 2 === 0 ? -1 : 1) * GameConfig.BATTLESTAR.HEIGHT * 0.3;
         
         cannons.push({
             x: xOffset,
             y: yOffset,
-            fireTimer: Math.floor(Math.random() * BATTLESTAR_FIRE_RATE), // Stagger firing
+            fireTimer: Math.floor(Math.random() * GameConfig.BATTLESTAR.FIRE_RATE), // Stagger firing
             damaged: false,
             rotation: 0 // Add rotation property for cannon
         });
@@ -5084,14 +5002,14 @@ function createBattlestar() {
     battlestar = {
         x: x,
         y: y,
-        dx: direction * BATTLESTAR_SPEED,
+        dx: direction * GameConfig.BATTLESTAR.SPEED,
         dy: 0, // Initialize vertical velocity to zero
-        width: BATTLESTAR_WIDTH,
-        height: BATTLESTAR_HEIGHT,
-        health: BATTLESTAR_MAX_HEALTH,
-        maxHealth: BATTLESTAR_MAX_HEALTH,
+        width: GameConfig.BATTLESTAR.WIDTH,
+        height: GameConfig.BATTLESTAR.HEIGHT,
+        health: GameConfig.BATTLESTAR.MAX_HEALTH,
+        maxHealth: GameConfig.BATTLESTAR.MAX_HEALTH,
         invulnerable: true,
-        invulnerableTime: BATTLESTAR_INVULNERABILITY_TIME,
+        invulnerableTime: GameConfig.BATTLESTAR.INVULNERABILITY_TIME,
         damageState: 0, // 0 = least damaged, 2 = most damaged
         cannons: cannons,
         spawnTime: 120, // Increased from 60 to 120 for longer spawn animation
@@ -5167,9 +5085,9 @@ function updateBattlestar() {
         }
         
         // Final explosion when death animation completes
-        if (battlestar.deathTimer >= BATTLESTAR_EXPLOSION_DURATION) {
+        if (battlestar.deathTimer >= GameConfig.BATTLESTAR.EXPLOSION_DURATION) {
             // Create massive explosion at battlestar's position
-            for (let i = 0; i < BATTLESTAR_EXPLOSION_PARTICLES; i++) {
+            for (let i = 0; i < GameConfig.BATTLESTAR.EXPLOSION_PARTICLES; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const distance = Math.random() * battlestar.width * 0.5;
                 const speed = 2 + Math.random() * 5;
@@ -5200,16 +5118,16 @@ function updateBattlestar() {
             });
             
             // Add score
-            score += BATTLESTAR_POINTS;
+            score += GameConfig.BATTLESTAR.POINTS;
             // Create a score popup directly for guaranteed correct display
-            createScorePopup(battlestar.x, battlestar.y, BATTLESTAR_POINTS, false);
+            createScorePopup(battlestar.x, battlestar.y, GameConfig.BATTLESTAR.POINTS, false);
             
             // Play explosion sound
             playSound('explode');
             
             // Remove battlestar
             battlestar = null;
-            addLogMessage('Battlestar destroyed! Earned ' + BATTLESTAR_POINTS + ' points!');
+            addLogMessage('Battlestar destroyed! Earned ' + GameConfig.BATTLESTAR.POINTS + ' points!');
         }
         
         return;
@@ -5308,15 +5226,15 @@ function updateBattlestar() {
                 cannon.rotation += angleDiff * rotationSpeed;
                 
                 // Fire when ready
-                if (cannon.fireTimer >= BATTLESTAR_FIRE_RATE) {
+                if (cannon.fireTimer >= GameConfig.BATTLESTAR.FIRE_RATE) {
                     cannon.fireTimer = 0;
                     
                     // Create bullet - use cannon's current rotation
                     battlestarBullets.push({
                         x: cannonX,
                         y: cannonY,
-                        dx: Math.cos(cannon.rotation) * BATTLESTAR_BULLET_SPEED,
-                        dy: Math.sin(cannon.rotation) * BATTLESTAR_BULLET_SPEED,
+                        dx: Math.cos(cannon.rotation) * GameConfig.BATTLESTAR.BULLET_SPEED,
+                        dy: Math.sin(cannon.rotation) * GameConfig.BATTLESTAR.BULLET_SPEED,
                         active: true,
                         size: 3 + Math.random() * 2,
                         pulsePhase: Math.random() * Math.PI * 2
@@ -5345,7 +5263,7 @@ function updateBattlestarBullets() {
 
         // Update pulse animation with deltaTime
         bullet.pulsePhase = (bullet.pulsePhase + 0.2 * 60 * deltaTime) % (Math.PI * 2);
-        bullet.size = BATTLESTAR_BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
+        bullet.size = GameConfig.BATTLESTAR.BULLET_SIZE * (1 + 0.2 * Math.sin(bullet.pulsePhase));
 
         // Remove if off screen
         if (bullet.x < 0 || bullet.x > canvas.width || 
@@ -5373,7 +5291,7 @@ function updateBattlestarBullets() {
 
         // Check collision with player
         if (ship && !ship.exploding && !ship.invulnerable) {
-            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < SHIP_SIZE) {
+            if (distBetweenPoints(bullet.x, bullet.y, ship.x, ship.y) < GameConfig.SHIP.SIZE) {
                 bullet.active = false;
                 destroyShip();
             }
@@ -5720,9 +5638,9 @@ function damageBattlestar(damage = 1, collisionAngle = null) {
         startBattlestarDeathSequence();
     } else {
         // Damage a cannon at random if health is below thresholds
-        if (battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[0] || 
-            battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[1] || 
-            battlestar.health === BATTLESTAR_DAMAGE_THRESHOLDS[2]) {
+        if (battlestar.health === GameConfig.BATTLESTAR.DAMAGE_THRESHOLDS[0] || 
+            battlestar.health === GameConfig.BATTLESTAR.DAMAGE_THRESHOLDS[1] || 
+            battlestar.health === GameConfig.BATTLESTAR.DAMAGE_THRESHOLDS[2]) {
             
             // Find undamaged cannons
             const undamagedCannons = battlestar.cannons.filter(cannon => !cannon.damaged);
@@ -5846,13 +5764,13 @@ function updateAliens() {
             alienBullets.push({
                 x: alien.x,
                 y: alien.y,
-                dx: Math.cos(spreadAngle) * ALIEN_BULLET_SPEED,
-                dy: Math.sin(spreadAngle) * ALIEN_BULLET_SPEED,
-                active: true,
-                size: ALIEN_BULLET_SIZE,
-                pulsePhase: 0,
-                radius: 3,
-                lifetime: ALIEN_BULLET_LIFETIME
+                                    dx: Math.cos(spreadAngle) * GameConfig.ALIEN.BULLET_SPEED,
+                    dy: Math.sin(spreadAngle) * GameConfig.ALIEN.BULLET_SPEED,
+                    active: true,
+                    size: GameConfig.ALIEN.BULLET_SIZE,
+                    pulsePhase: 0,
+                    radius: 3,
+                    lifetime: GameConfig.ALIEN.BULLET_LIFETIME
             });
             
             // Play sound

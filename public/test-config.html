@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameConfig Test</title>
+</head>
+<body>
+    <h1>GameConfig Test</h1>
+    <div id="test-results"></div>
+    
+    <script src="js/config/GameConfig.js"></script>
+    <script>
+        const results = document.getElementById('test-results');
+        
+        function addResult(test, passed, details = '') {
+            const div = document.createElement('div');
+            div.style.color = passed ? 'green' : 'red';
+            div.innerHTML = `${test}: ${passed ? 'PASS' : 'FAIL'} ${details}`;
+            results.appendChild(div);
+        }
+        
+        // Test if GameConfig loads
+        addResult('GameConfig exists', typeof GameConfig !== 'undefined');
+        
+        if (typeof GameConfig !== 'undefined') {
+            // Test key sections
+            addResult('GAME section exists', typeof GameConfig.GAME !== 'undefined');
+            addResult('SHIP section exists', typeof GameConfig.SHIP !== 'undefined');
+            addResult('ASTEROID section exists', typeof GameConfig.ASTEROID !== 'undefined');
+            addResult('BULLET section exists', typeof GameConfig.BULLET !== 'undefined');
+            addResult('ALIEN section exists', typeof GameConfig.ALIEN !== 'undefined');
+            
+            // Test specific values
+            if (GameConfig.GAME) {
+                addResult('GAME.FPS', typeof GameConfig.GAME.FPS === 'number', `(${GameConfig.GAME.FPS})`);
+                addResult('GAME.MAX_BULLETS', typeof GameConfig.GAME.MAX_BULLETS === 'number', `(${GameConfig.GAME.MAX_BULLETS})`);
+                addResult('GAME.STARTING_LIVES', typeof GameConfig.GAME.STARTING_LIVES === 'number', `(${GameConfig.GAME.STARTING_LIVES})`);
+            }
+            
+            if (GameConfig.SHIP) {
+                addResult('SHIP.SIZE', typeof GameConfig.SHIP.SIZE === 'number', `(${GameConfig.SHIP.SIZE})`);
+                addResult('SHIP.THRUST', typeof GameConfig.SHIP.THRUST === 'number', `(${GameConfig.SHIP.THRUST})`);
+                addResult('SHIP.FRICTION', typeof GameConfig.SHIP.FRICTION === 'number', `(${GameConfig.SHIP.FRICTION})`);
+            }
+            
+            if (GameConfig.ASTEROID) {
+                addResult('ASTEROID.BASE_SPEED', typeof GameConfig.ASTEROID.BASE_SPEED === 'number', `(${GameConfig.ASTEROID.BASE_SPEED})`);
+                addResult('ASTEROID.COUNT', typeof GameConfig.ASTEROID.COUNT === 'number', `(${GameConfig.ASTEROID.COUNT})`);
+                addResult('ASTEROID.JAG', typeof GameConfig.ASTEROID.JAG === 'number', `(${GameConfig.ASTEROID.JAG})`);
+            }
+            
+            console.log('Full GameConfig object:', GameConfig);
+        }
+    </script>
+</body>
+</html> 

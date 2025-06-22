@@ -238,11 +238,12 @@ app.post('/api/highscores', rateLimit, (req, res) => {
     }
     
     // Dynamic score limit based on game data
-    let maxScore = 1000000; // Default max
+    let maxScore = 5000000; // Default max increased to 5 million
     if (gameData && gameData.level) {
-        // Estimate reasonable max score based on level
-        // Level 1: ~5000, Level 10: ~50000, etc.
-        maxScore = Math.min(1000000, gameData.level * 5000);
+        // Much more generous limits to account for battlestar (5000), aliens, and asteroids
+        // Level 1: ~25000, Level 10: ~250000, etc.
+        // This allows for battlestar + multiple waves of aliens + all asteroids
+        maxScore = Math.min(5000000, gameData.level * 25000);
     }
     
     if (score > maxScore) {
@@ -256,8 +257,10 @@ app.post('/api/highscores', rateLimit, (req, res) => {
     // Validate game data consistency
     if (gameData) {
         // Check if level and score are consistent
-        if (gameData.level && gameData.level > 0) {
-            const expectedMinScore = (gameData.level - 1) * 1000; // Minimum expected score for level
+        if (gameData.level && gameData.level > 1) {
+            // Only check minimum score for levels above 1
+            // More lenient minimum score check - some players might die early
+            const expectedMinScore = (gameData.level - 1) * 500; // Reduced minimum
             if (score < expectedMinScore) {
                 console.log('Validation failed: Score too low for level:', score, 'level:', gameData.level);
                 return res.status(400).json({ 
