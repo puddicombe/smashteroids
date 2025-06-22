@@ -4,6 +4,28 @@ A modern reimagining inspired by the classic Asteroids arcade game, featuring en
 
 (c) James Puddicombe 2025
 
+## Quick Start
+
+### Using Docker (Recommended)
+```bash
+# Build and run with Docker
+docker build -t smashteroids .
+docker run -p 3000:3000 smashteroids
+
+# Then open http://localhost:3000 in your browser
+```
+
+### Using Node.js directly
+```bash
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# Then open http://localhost:3000 in your browser
+```
+
 ## Features
 
 ### Core Gameplay
@@ -51,28 +73,45 @@ A modern reimagining inspired by the classic Asteroids arcade game, featuring en
 
 ### Prerequisites
 
-- Node.js (v14 or higher recommended)
+- Node.js (v18 or higher recommended)
 - npm (comes with Node.js)
+- Or Docker (for containerized deployment)
 
 ### Installation
 
-1. Clone this repository
-2. Install the server dependencies:
+1. Clone this repository:
+   ```bash
+   git clone <repository-url>
+   cd smashteroids
+   ```
 
-```bash
-cd server
-npm install
-```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
 ### Starting the Server
 
-From the server directory, run:
-
+#### Option 1: Direct Node.js
 ```bash
 npm start
 ```
 
-This will start the server on port 3000.
+#### Option 2: Development mode with auto-restart
+```bash
+npm run dev
+```
+
+#### Option 3: Using Docker
+```bash
+# Build the Docker image
+docker build -t smashteroids .
+
+# Run the container
+docker run -p 3000:3000 smashteroids
+```
+
+The server will start on port 3000.
 
 ### Playing the Game
 
@@ -100,14 +139,15 @@ http://localhost:3000
 ### Debug Features
 - **Spawn Alien**: U key (for testing)
 
-## Deploying to Heroku
+## Deployment
 
-### Prerequisites
+### Deploying to Heroku
 
+#### Prerequisites
 - A Heroku account
 - Heroku CLI installed
 
-### Deployment Steps
+#### Deployment Steps
 
 1. Login to Heroku CLI:
    ```bash
@@ -129,18 +169,60 @@ http://localhost:3000
    heroku open
    ```
 
-### Notes About Heroku Deployment
-
+#### Notes About Heroku Deployment
 - High scores on Heroku will reset whenever the dyno restarts (approximately daily)
 - For persistent high scores, consider adding a database like MongoDB Atlas or Heroku Postgres
+- The app uses the `Procfile` for Heroku deployment configuration
+
+### Deploying with Docker
+
+#### Build and run locally
+```bash
+docker build -t smashteroids .
+docker run -p 3000:3000 smashteroids
+```
+
+#### Deploy to Docker Hub
+```bash
+# Tag your image
+docker tag smashteroids yourusername/smashteroids:latest
+
+# Push to Docker Hub
+docker push yourusername/smashteroids:latest
+```
+
+#### Deploy to cloud platforms
+- **Google Cloud Run**: Use the provided Dockerfile
+- **AWS ECS**: Use the provided Dockerfile
+- **Azure Container Instances**: Use the provided Dockerfile
 
 ## Development
 
-To run the server in development mode with auto-restart:
+### Project Structure
+```
+smashteroids/
+├── public/           # Static game files
+│   ├── game.js      # Main game logic
+│   ├── index.html   # Game interface
+│   └── audioWorklet.js # Audio processing
+├── server/          # Server-side code
+│   ├── server.js    # Express server
+│   └── test-highscores.js # Testing utilities
+├── Dockerfile       # Container configuration
+├── package.json     # Dependencies and scripts
+└── README.md        # This file
+```
 
+### Development Commands
 ```bash
-cd server
+# Start development server with auto-restart
 npm run dev
+
+# Run tests
+npm test
+
+# Build Docker image
+docker build -t smashteroids .
 ```
 
 ## Game Mechanics
@@ -159,6 +241,14 @@ npm run dev
 - Score multipliers increase with level
 - More asteroid fragments spawn at higher levels
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
 ## License
 
-MIT License 
+MIT License - see LICENSE file for details 
