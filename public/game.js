@@ -714,6 +714,11 @@ function gameLoop(timestamp) {
     drawLog();
     drawDebugInfo(); // Draw debug info if enabled
     
+    // Draw ConfigUI if it exists
+    if (window.configUI) {
+        window.configUI.draw(ctx);
+    }
+    
     requestAnimationFrame(gameLoop);
 }
 
@@ -1480,6 +1485,11 @@ function drawPauseScreen() {
     // Show debug info if enabled
     if (showDebugInfo) {
         drawDebugInfo();
+        
+        // Draw ConfigUI if it exists
+        if (window.configUI) {
+            window.configUI.draw(ctx);
+        }
     }
 }
 

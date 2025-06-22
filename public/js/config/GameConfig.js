@@ -232,8 +232,8 @@ const GameConfig = {
   }
 };
 
-// Freeze the configuration to prevent runtime modifications
-Object.freeze(GameConfig);
+// Don't freeze the configuration - we want to allow runtime modifications via ConfigUI
+// Object.freeze(GameConfig);
 
 // Export for module systems (if available)
 if (typeof module !== 'undefined' && module.exports) {
