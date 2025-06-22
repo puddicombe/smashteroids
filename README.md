@@ -8,9 +8,9 @@ A modern reimagining inspired by the classic Asteroids arcade game, featuring en
 
 ### Using Docker (Recommended)
 ```bash
-# Build and run with Docker
+# Build and run with Docker (auto-restart on reboot)
 docker build -t smashteroids .
-docker run -p 3000:3000 smashteroids
+docker run -d --restart unless-stopped -p 3000:3000 smashteroids
 
 # Then open http://localhost:3000 in your browser
 ```
@@ -107,8 +107,8 @@ npm run dev
 # Build the Docker image
 docker build -t smashteroids .
 
-# Run the container
-docker run -p 3000:3000 smashteroids
+# Run the container (auto-restart on reboot)
+docker run -d --restart unless-stopped -p 3000:3000 smashteroids
 ```
 
 The server will start on port 3000.
@@ -179,7 +179,7 @@ http://localhost:3000
 #### Build and run locally
 ```bash
 docker build -t smashteroids .
-docker run -p 3000:3000 smashteroids
+docker run -d --restart unless-stopped -p 3000:3000 smashteroids
 ```
 
 #### Deploy to Docker Hub
