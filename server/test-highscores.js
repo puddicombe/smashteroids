@@ -7,10 +7,9 @@
  * 3. Fetching the scores again to verify the new score was added
  */
 
-const fetch = require('node-fetch');
 const assert = require('assert');
 
-const API_URL = 'http://localhost:3000/api/highscores';
+const API_URL = 'http://localhost:3030/api/highscores';
 const TEST_SCORE = {
     // Use lowercase initials to verify that the server correctly
     // sanitizes and uppercases incoming values
@@ -102,7 +101,7 @@ async function testHighScoreAPI() {
         
     } catch (error) {
         console.error('\n❌ Test failed:', error.message);
-        console.error('Make sure the server is running on http://localhost:3000');
+        console.error('Make sure the server is running on http://localhost:3030');
         process.exit(1);
     }
 }
