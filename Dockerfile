@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 
 # Install app dependencies
 COPY package*.json ./
-RUN npm install --only=production
+RUN npm install
 
 # Bundle app source
 COPY . .
@@ -21,7 +21,7 @@ RUN chown -R nodejs:nodejs /usr/src/app
 USER nodejs
 
 # Expose the port your app listens on
-EXPOSE 3000
+EXPOSE 3030
 
 # Start the app
 CMD ["npm", "start"]

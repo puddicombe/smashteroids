@@ -10,9 +10,9 @@ A modern reimagining inspired by the classic Asteroids arcade game, featuring en
 ```bash
 # Build and run with Docker (auto-restart on reboot)
 docker build -t smashteroids .
-docker run -d --restart unless-stopped -p 3000:3000 smashteroids
+docker run -d --restart unless-stopped -p 3030:3030 smashteroids
 
-# Then open http://localhost:3000 in your browser
+# Then open http://localhost:3030 in your browser
 ```
 
 ### Using Node.js directly
@@ -23,7 +23,7 @@ npm install
 # Start the server
 npm start
 
-# Then open http://localhost:3000 in your browser
+# Then open http://localhost:3030 in your browser
 ```
 
 ## Features
@@ -108,17 +108,17 @@ npm run dev
 docker build -t smashteroids .
 
 # Run the container (auto-restart on reboot)
-docker run -d --restart unless-stopped -p 3000:3000 smashteroids
+docker run -d --restart unless-stopped -p 3030:3030 smashteroids
 ```
 
-The server will start on port 3000.
+The server will start on port 3030.
 
 ### Playing the Game
 
 Open your browser and navigate to:
 
 ```
-http://localhost:3000
+http://localhost:3030
 ```
 
 ## Game Controls
@@ -179,7 +179,7 @@ http://localhost:3000
 #### Build and run locally
 ```bash
 docker build -t smashteroids .
-docker run -d --restart unless-stopped -p 3000:3000 smashteroids
+docker run -d --restart unless-stopped -p 3030:3030 smashteroids
 ```
 
 #### Deploy to Docker Hub
