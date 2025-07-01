@@ -412,6 +412,9 @@ let soundFX = {
 };
 let audioContext = null;
 
+// Initialize our new AudioManager
+let audioManager = null;
+
 /**
  * Ship explosion system
  * Creates dramatic, physics-based destruction
@@ -564,8 +567,8 @@ function init() {
         }
     });
     
-    // Load game sounds
-    loadSounds();
+    // Initialize audio system
+    initializeAudio();
     
     // Initialize welcome screen
     generateStars();
@@ -1750,7 +1753,65 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// Load sound effects
+// Initialize audio system using AudioManager
+function initializeAudio() {
+    try {
+        audioManager = new AudioManager();
+        
+        // Set up compatibility wrapper for existing code
+        soundFX = {
+            fire: { play: () => audioManager.playSound('fire') },
+            thrust: { 
+                play: () => audioManager.playThrustSound(true),
+                pause: () => audioManager.playThrustSound(false),
+                currentTime: 0 // Dummy property for compatibility
+            },
+            bangLarge: { play: () => audioManager.playSound('bangLarge') },
+            bangMedium: { play: () => audioManager.playSound('bangMedium') },
+            bangSmall: { play: () => audioManager.playSound('bangSmall') },
+            explode: { play: () => audioManager.playSound('explode') },
+            alienSpawn: { play: () => audioManager.playSound('alienSpawn') },
+            alienFire: { play: () => audioManager.playSound('alienFire') }
+        };
+        
+        // Initialize audio on first user interaction
+        const initAudioOnInteraction = async () => {
+            try {
+                await audioManager.initialize();
+                addLogMessage('AudioManager initialized');
+                document.removeEventListener('click', initAudioOnInteraction);
+                document.removeEventListener('keydown', initAudioOnInteraction);
+            } catch (error) {
+                console.warn('AudioManager initialization failed:', error);
+                addLogMessage('Audio initialization failed');
+            }
+        };
+        
+        document.addEventListener('click', initAudioOnInteraction);
+        document.addEventListener('keydown', initAudioOnInteraction);
+        
+        // Also add focus/blur handlers for audio context management
+        window.addEventListener('blur', () => {
+            if (audioManager) {
+                audioManager.suspend();
+            }
+        });
+        
+        window.addEventListener('focus', () => {
+            if (audioManager) {
+                audioManager.resume();
+            }
+        });
+        
+        addLogMessage('Audio system ready for initialization');
+        
+    } catch (error) {
+        console.error('Failed to set up AudioManager:', error);
+        addLogMessage('Audio setup failed: ' + error.message);
+    }
+}
+
+// Legacy function - replaced with AudioManager
 function loadSounds() {
     try {
         // Create audio context
@@ -2021,8 +2082,14 @@ function resetAudioContext() {
     }
 }
 
-// Play or stop the thrust sound
+// Play or stop the thrust sound - now using AudioManager
 function playThrustSound(play) {
+    if (audioManager) {
+        audioManager.playThrustSound(play);
+        return;
+    }
+    
+    // Fallback to legacy system
     if (!audioContext) {
         console.error('Audio context not available for thrust sound');
         return;
@@ -2115,8 +2182,14 @@ function playThrustSound(play) {
     }
 }
 
-// Play a sound effect
+// Play a sound effect - now using AudioManager
 function playSound(soundType) {
+    if (audioManager) {
+        audioManager.playSound(soundType);
+        return;
+    }
+    
+    // Fallback to legacy system
     if (!audioContext) {
         console.error('Audio context not available for sound:', soundType);
         addLogMessage('Audio context not available');
